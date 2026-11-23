@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:camera/camera.dart' show CameraController;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart' show Offset;
 import 'package:mp_audio_stream/mp_audio_stream.dart';
 import 'package:record/record.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -237,6 +238,44 @@ class GeminiLiveSession extends VoiceSession {
 - Coordenadas de 0 a 1000 sobre a imagem mais recente. Faça uma ação por vez, diga brevemente o que vai fazer e confira a imagem seguinte antes da próxima ação.
 - Nunca apague, compre, envie mensagens ou altere senhas sem o usuário pedir explicitamente.''';
 
+  static double _num(Object? v) => v is num ? v.toDouble() : double.tryParse('$v') ?? 0;
+
+  static bool _looksFailed(String r) {
+    final l = r.toLowerCase();
+    return l.startsWith('falhou') || l.startsWith('erro') || l.contains('recusou') || l.contains('não consegui') ||
+        l.contains('desativad') || l.contains('não permitiu') || l.contains('não está') ||
+        RegExp(r'código de saída: [1-9]').hasMatch(l) || l.contains('interrompido após');
+  }
+
+  static String _actionTitle(String name, Map<String, dynamic> a) => switch (name) {
+        'tela_clicar' => 'Clique ${a['botao'] ?? 'esquerdo'}${'${a['duplo']}'.startsWith('s') ? ' duplo' : ''} em (${a['x']}, ${a['y']})',
+        'tela_digitar' => 'Digitar texto',
+        'tela_tecla' => 'Tecla ${a['combinacao']}',
+        'tela_rolar' => 'Rolar ${a['direcao'] ?? 'baixo'}',
+        'executar_comando' => 'Terminal',
+        'pesquisar_na_web' => 'Pesquisar: ${a['consulta']}',
+        'controlar_casa' => 'Casa: ${a['acao'] ?? 'ligar'} ${a['dispositivo']}',
+        _ => name.replaceAll('_', ' '),
+      };
+
+  static String _actionDetail(String name, Map<String, dynamic> a) => switch (name) {
+        'executar_comando' => '\$ ${a['comando']}',
+        'tela_digitar' => '"${a['texto']}"',
+        _ => a.isEmpty ? '' : a.entries.map((e) => '${e.key}: ${e.value}').join(' · '),
+      };
+
+  void _onScreenFrame(Uint8List jpeg) {
+    lastScreenFrame = jpeg;
+    _sendImage(jpeg);
+    notifyListeners();
+  }
+
+  void _onCameraFrame(Uint8List jpeg) {
+    lastCameraFrame = jpeg;
+    _sendImage(jpeg);
+    notifyListeners();
+  }
+
   void _sendImage(Uint8List jpeg) {
     if (!_setupDone) return;
     _send({
@@ -258,6 +297,8 @@ class GeminiLiveSession extends VoiceSession {
     cameraEnabled = false;
     screenEnabled = false;
     screenStarting = false;
+    lastScreenFrame = null;
+    lastCameraFrame = null;
   }
 
   void _note(String text) => upsertMessage('n${_seq++}', fromUser: false, text: text, isTool: true);
@@ -277,7 +318,7 @@ class GeminiLiveSession extends VoiceSession {
       try {
         await cam.start();
         _camera = cam;
-        _visionSub = cam.frames.listen(_sendImage);
+        _visionSub = cam.frames.listen(_onCameraFrame);
         cameraEnabled = true;
       } catch (e) {
         await cam.dispose();
@@ -316,7 +357,8 @@ class GeminiLiveSession extends VoiceSession {
       try {
         await bridge.start();
         _screen = bridge;
-        _visionSub = bridge.frames.listen(_sendImage);
+        screenAspect = bridge.width / bridge.height;
+        _visionSub = bridge.frames.listen(_onScreenFrame);
         screenEnabled = true;
         bridge.onClosed = (err) {
           if (_screen != bridge) return;
@@ -463,9 +505,22 @@ class GeminiLiveSession extends VoiceSession {
         final name = call['name'] as String;
         final args = (call['args'] as Map?)?.cast<String, dynamic>() ?? {};
         final toolId = 't${_seq++}';
-        upsertMessage(toolId, fromUser: false, text: '🔧 $name(${args.values.join(', ')})', isTool: true);
+        final entry = ActionEntry(id: toolId, tool: name, title: _actionTitle(name, args), detail: _actionDetail(name, args));
+        actions.add(entry);
+        if (actions.length > 200) actions.removeAt(0);
+        if (name == 'tela_clicar') {
+          lastClick = Offset(_num(args['x']), _num(args['y']));
+          lastClickAt = DateTime.now();
+        }
+        upsertMessage(toolId, fromUser: false, text: '⚙️ ${entry.title}…', isTool: true);
+        final sw = Stopwatch()..start();
         final result = await tools.execute(name, args);
-        upsertMessage(toolId, fromUser: false, text: '🔧 $name → $result', isTool: true);
+        entry
+          ..took = sw.elapsed
+          ..result = result
+          ..status = _looksFailed(result) ? ActionStatus.failed : ActionStatus.ok;
+        upsertMessage(toolId, fromUser: false,
+            text: '${entry.status == ActionStatus.ok ? '✅' : '⚠️'} ${entry.title}', isTool: true);
         responses.add({
           'id': call['id'],
           'name': name,

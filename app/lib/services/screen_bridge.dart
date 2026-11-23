@@ -22,6 +22,9 @@ class ScreenBridge {
   int _seq = 0;
   bool ready = false;
 
+  /// Tamanho real da tela compartilhada.
+  int width = 16, height = 9;
+
   /// Chamado quando a ponte encerra (erro, usuário negou, etc.).
   void Function(String? error)? onClosed;
 
@@ -30,7 +33,7 @@ class ScreenBridge {
   /// Inicia e espera o "ready" (o usuário pode precisar aprovar no diálogo).
   Future<void> start() async {
     final script = await _extractScript();
-    _proc = await Process.start('/usr/bin/python3', ['-I', script, '--mode', control ? 'control' : 'view', '--fps', '1']);
+    _proc = await Process.start('/usr/bin/python3', ['-I', script, '--mode', control ? 'control' : 'view', '--fps', control ? '2' : '1']);
     final readyC = Completer<void>();
     String? lastError;
 
@@ -44,6 +47,8 @@ class ScreenBridge {
       switch (m['type']) {
         case 'ready':
           ready = true;
+          width = (m['w'] as num?)?.toInt() ?? width;
+          height = (m['h'] as num?)?.toInt() ?? height;
           if (!readyC.isCompleted) readyC.complete();
         case 'frame':
           if (!_frames.isClosed) _frames.add(base64Decode(m['data'] as String));

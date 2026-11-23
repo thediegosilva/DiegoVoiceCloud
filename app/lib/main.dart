@@ -8,6 +8,7 @@ import 'services/gemini_live_session.dart';
 import 'services/livekit_session.dart';
 import 'services/mem0_service.dart';
 import 'services/pc_control.dart';
+import 'services/terminal_service.dart';
 import 'services/tool_registry.dart';
 import 'services/voice_session.dart';
 import 'services/voicemonkey_service.dart';
@@ -91,6 +92,9 @@ class HomeScreen extends StatelessWidget {
           voiceMonkey: VoiceMonkeyService(settings.voiceMonkeyToken),
           pc: pc,
           pcEnabled: settings.pcToolsEnabled,
+          terminal: TerminalService.supported
+              ? TerminalService(mode: () => settings.terminalMode, confirm: _confirm)
+              : null,
         ),
       );
     }

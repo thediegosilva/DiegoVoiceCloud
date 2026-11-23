@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/terminal_service.dart';
 import 'prompts.dart';
 
 /// Modo de conexão do Jarvis.
@@ -154,6 +155,12 @@ class AppSettings extends ChangeNotifier {
   /// Desligado por padrão: o usuário precisa ativar conscientemente.
   bool get allowComputerControl => _b('allowComputerControl', false);
   set allowComputerControl(bool v) => _set('allowComputerControl', v);
+
+  /// Uso do terminal pelo Jarvis: desligado, perguntar sempre, ou automático
+  /// (comandos perigosos sempre perguntam).
+  TerminalMode get terminalMode => TerminalMode.values.firstWhere(
+      (m) => m.name == _s('terminalMode', 'ask'), orElse: () => TerminalMode.ask);
+  set terminalMode(TerminalMode v) => _set('terminalMode', v.name);
 
   /// Ferramentas de controle do PC (só em Linux/Windows).
   bool get pcToolsEnabled => _b('pcToolsEnabled', true);

@@ -2,12 +2,16 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'pc_control.dart';
 import 'screen_bridge.dart';
+import 'terminal_service.dart';
 import 'voicemonkey_service.dart';
 
 /// Ferramentas que o Jarvis pode chamar no modo "Gemini direto".
 /// (No modo LiveKit, as ferramentas rodam no agente Python do backend.)
 class ToolRegistry {
-  ToolRegistry({required this.voiceMonkey, required this.pc, required this.pcEnabled});
+  ToolRegistry({required this.voiceMonkey, required this.pc, required this.pcEnabled, this.terminal});
+
+  /// Terminal do PC (null = indisponível neste aparelho).
+  final TerminalService? terminal;
 
   final VoiceMonkeyService voiceMonkey;
   final PcControl pc;
@@ -60,6 +64,14 @@ class ToolRegistry {
           _fn('controle_brilho', 'Ajusta o brilho da tela.', {'nivel': 'int:Brilho de 0 a 100'}),
           _fn('energia_pc', "Controla a energia do PC. Ações: 'desligar', 'reiniciar', 'bloquear'.", {'acao': 'desligar | reiniciar | bloquear'}),
         ],
+        if (pcEnabled && terminal != null)
+          _fn('executar_comando',
+              'Roda um comando no terminal do PC (bash no Linux, PowerShell no Windows) e devolve a saída. '
+                  'Use para tarefas como listar arquivos, ver uso de disco, git, rodar scripts, instalar pacotes do usuário (pip/npm). '
+                  'A pasta atual persiste entre comandos (use "cd pasta" sozinho para mudar). '
+                  'Comandos interativos não funcionam (sem teclado); limite de 60 s — servidores/longos: "nohup … &". '
+                  'Pode ser que o usuário precise confirmar.',
+              {'comando': 'O comando completo'}),
         if (_screenTools) ...[
           _fn('tela_clicar',
               'Clica na tela do PC (só funciona com a tela compartilhada e o controle permitido pelo usuário). '
@@ -92,6 +104,9 @@ class ToolRegistry {
     }
     if (!pcEnabled) return 'Ferramentas de PC desativadas nas configurações.';
     if (name.startsWith('tela_')) return _tela(name, args, s, i);
+    if (name == 'executar_comando') {
+      return terminal?.run(s('comando')) ?? Future.value('Terminal indisponível neste aparelho.');
+    }
     return switch (name) {
       'abrir_aplicativo' => pc.abrirAplicativo(s('nome_app')),
       'fechar_programa' => pc.fecharPrograma(s('programa')),

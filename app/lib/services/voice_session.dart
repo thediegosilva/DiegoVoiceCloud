@@ -1,6 +1,24 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart' show Offset;
 
 enum SessionState { idle, connecting, listening, thinking, speaking, error }
+
+enum ActionStatus { running, ok, failed }
+
+/// Uma ação executada pelo Jarvis (ferramenta), mostrada no painel.
+class ActionEntry {
+  ActionEntry({required this.id, required this.tool, required this.title, this.detail = ''})
+      : started = DateTime.now();
+
+  final String id;
+  final String tool;
+  final String title;
+  final DateTime started;
+  String detail;
+  String result = '';
+  ActionStatus status = ActionStatus.running;
+  Duration? took;
+}
 
 class ChatMessage {
   ChatMessage({required this.id, required this.fromUser, required this.text, this.isTool = false});
@@ -25,6 +43,20 @@ abstract class VoiceSession extends ChangeNotifier {
 
   /// Nível de áudio 0..1 do microfone.
   double userLevel = 0;
+
+  /// Ações do Jarvis (mais recentes no fim).
+  final List<ActionEntry> actions = [];
+
+  /// Último quadro (JPEG) que o Jarvis recebeu da tela / da câmera.
+  Uint8List? lastScreenFrame;
+  Uint8List? lastCameraFrame;
+
+  /// Último clique na tela (0–1000) para marcar no painel.
+  /// Proporção (largura/altura) da tela compartilhada.
+  double screenAspect = 16 / 9;
+
+  Offset? lastClick;
+  DateTime? lastClickAt;
 
   bool get supportsCamera => false;
   bool cameraEnabled = false;

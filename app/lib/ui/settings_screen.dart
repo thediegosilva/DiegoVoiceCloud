@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import '../config/prompts.dart';
 import '../config/settings.dart';
 import '../services/pc_control.dart';
+import '../services/terminal_service.dart';
 import 'api_keys_card.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -60,6 +61,25 @@ class SettingsScreen extends StatelessWidget {
                 value: settings.allowComputerControl,
                 onChanged: (v) => settings.allowComputerControl = v,
               ),
+            if (TerminalService.supported) ...[
+              const SizedBox(height: 12),
+              const Text('Terminal', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              const Text('O Jarvis pode rodar comandos no seu PC e ler o resultado. '
+                  'Comandos perigosos (sudo, rm -r, desligar…) sempre pedem confirmação.',
+                  style: TextStyle(fontSize: 12)),
+              const SizedBox(height: 8),
+              SegmentedButton<TerminalMode>(
+                segments: const [
+                  ButtonSegment(value: TerminalMode.off, label: Text('Desligado'), icon: Icon(Icons.block)),
+                  ButtonSegment(value: TerminalMode.ask, label: Text('Perguntar'), icon: Icon(Icons.help_outline)),
+                  ButtonSegment(value: TerminalMode.auto, label: Text('Automático'), icon: Icon(Icons.bolt)),
+                ],
+                selected: {settings.terminalMode},
+                onSelectionChanged: (v) => settings.terminalMode = v.first,
+              ),
+              const SizedBox(height: 8),
+            ],
             if (PcControl.supported)
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,

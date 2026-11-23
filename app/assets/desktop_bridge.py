@@ -260,6 +260,10 @@ class Bridge:
             buf.unmap(info)
         return Gst.FlowReturn.OK
 
+    def _send_frame_once(self):
+        self._send_frame()
+        return False
+
     def _send_frame(self):
         with self.lock:
             data = self.last_jpeg
@@ -350,6 +354,8 @@ class Bridge:
             else:
                 raise RuntimeError(f"Comando desconhecido: {cmd}")
             emit({"type": "result", "id": rid, "ok": True, "msg": out})
+            # Imagem nova logo após a ação, para o Jarvis conferir o resultado.
+            GLib.timeout_add(350, self._send_frame_once)
         except Exception as e:  # noqa: BLE001
             emit({"type": "result", "id": rid, "ok": False, "msg": str(e)})
         return False

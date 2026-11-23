@@ -7,6 +7,7 @@ import '../services/livekit_session.dart';
 import '../services/voice_session.dart';
 import 'backdrop.dart';
 import 'orb.dart';
+import 'vision_panel.dart';
 
 class SessionScreen extends StatefulWidget {
   const SessionScreen({super.key, required this.session, required this.title, this.femaleVoice = false});
@@ -86,12 +87,25 @@ class _SessionScreenState extends State<SessionScreen> {
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          if (MediaQuery.sizeOf(context).width < 980)
+            IconButton(
+              tooltip: 'O que o Jarvis vê e faz',
+              onPressed: () => _openPanel(context, palette),
+              icon: Badge(
+                isLabelVisible: s.actions.any((a) => a.status == ActionStatus.running) || s.screenEnabled || s.cameraEnabled,
+                backgroundColor: const Color(0xFF3DDC97),
+                smallSize: 8,
+                child: const Icon(Icons.space_dashboard_rounded),
+              ),
+            ),
+        ],
       ),
       body: AuroraBackdrop(
         palette: s.state == SessionState.error ? OrbPalette.error : palette,
         intensity: s.state == SessionState.speaking ? 1 : 0.45,
         child: SafeArea(
-          child: Column(
+          child: _withPanel(context, palette, Column(
             children: [
               const SizedBox(height: 4),
               Stack(
@@ -274,6 +288,50 @@ class _SessionScreenState extends State<SessionScreen> {
               ),
             ],
           ),
+        )),
+      ),
+    );
+  }
+
+  /// Tela larga (PC): painel fixo à direita. Estreita (celular): só a conversa.
+  Widget _withPanel(BuildContext context, OrbPalette palette, Widget conversation) {
+    return LayoutBuilder(builder: (context, c) {
+      if (c.maxWidth < 980) return conversation;
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: conversation),
+          Container(
+            width: 420,
+            margin: const EdgeInsets.fromLTRB(0, 8, 12, 12),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.25),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: VisionPanel(session: s, palette: palette),
+            ),
+          ),
+        ],
+      );
+    });
+  }
+
+  void _openPanel(BuildContext context, OrbPalette palette) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xF20A0E18),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.75,
+        maxChildSize: 0.95,
+        builder: (_, ctrl) => ListenableBuilder(
+          listenable: s,
+          builder: (_, _) => VisionPanel(session: s, palette: palette, scrollController: ctrl),
         ),
       ),
     );
