@@ -63,6 +63,15 @@ class AppSettings extends ChangeNotifier {
   String get geminiVoice => _s('geminiVoice', 'Charon');
   set geminiVoice(String v) => _set('geminiVoice', v);
 
+  /// Vozes femininas do Gemini (as demais são masculinas). Define a cor do
+  /// orbe: rosa para feminina, azul para masculina.
+  static const femaleVoices = {
+    'Kore', 'Aoede', 'Leda', 'Zephyr', 'Autonoe', 'Callirrhoe', 'Despina',
+    'Erinome', 'Gacrux', 'Laomedeia', 'Pulcherrima', 'Sulafat', 'Vindemiatrix', 'Achernar',
+  };
+
+  bool get voiceIsFemale => femaleVoices.contains(geminiVoice);
+
   String get systemPrompt => _s('systemPrompt', kAgentInstruction);
   set systemPrompt(String v) => _set('systemPrompt', v);
 

@@ -30,7 +30,13 @@ class SettingsScreen extends StatelessWidget {
             DropdownButtonFormField<String>(
               initialValue: _voices.contains(settings.geminiVoice) ? settings.geminiVoice : 'Charon',
               decoration: const InputDecoration(labelText: 'Voz'),
-              items: [for (final v in _voices) DropdownMenuItem(value: v, child: Text(v))],
+              items: [
+                for (final v in _voices)
+                  DropdownMenuItem(
+                    value: v,
+                    child: Text('$v · ${AppSettings.femaleVoices.contains(v) ? 'feminina (rosa)' : 'masculina (azul)'}'),
+                  ),
+              ],
               onChanged: (v) => settings.geminiVoice = v ?? 'Charon',
             ),
             SwitchListTile(

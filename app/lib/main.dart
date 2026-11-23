@@ -97,6 +97,7 @@ class HomeScreen extends StatelessWidget {
       builder: (_) => SessionScreen(
         session: session,
         title: settings.mode == JarvisMode.livekit ? 'Jarvis · LiveKit' : 'Jarvis · Gemini',
+        femaleVoice: settings.voiceIsFemale,
       ),
     ));
     if (session.state != SessionState.idle) await session.disconnect();

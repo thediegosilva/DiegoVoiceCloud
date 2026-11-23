@@ -6,10 +6,13 @@ import '../services/voice_session.dart';
 import 'orb.dart';
 
 class SessionScreen extends StatefulWidget {
-  const SessionScreen({super.key, required this.session, required this.title});
+  const SessionScreen({super.key, required this.session, required this.title, this.femaleVoice = false});
 
   final VoiceSession session;
   final String title;
+
+  /// Voz feminina → orbe rosa; masculina → azul.
+  final bool femaleVoice;
 
   @override
   State<SessionScreen> createState() => _SessionScreenState();
@@ -81,7 +84,7 @@ class _SessionScreenState extends State<SessionScreen> {
             Stack(
               alignment: Alignment.center,
               children: [
-                JarvisOrb(state: s.state, level: level, size: MediaQuery.sizeOf(context).height < 640 ? 150 : 210),
+                JarvisOrb(state: s.state, level: level, female: widget.femaleVoice, size: MediaQuery.sizeOf(context).height < 640 ? 150 : 210),
                 if (videoTrack != null && s.cameraEnabled)
                   Positioned(
                     right: 0,
@@ -93,7 +96,12 @@ class _SessionScreenState extends State<SessionScreen> {
                   ),
               ],
             ),
-            Text(_label, style: Theme.of(context).textTheme.titleMedium?.copyWith(color: scheme.primary)),
+            Text(_label,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: s.state == SessionState.error
+                        ? scheme.error
+                        : (widget.femaleVoice ? OrbPalette.female : OrbPalette.male).accent,
+                    letterSpacing: 1.2)),
             if (s.state == SessionState.error && s.error != null)
               Padding(
                 padding: const EdgeInsets.all(12),
