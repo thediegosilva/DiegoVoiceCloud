@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 
@@ -133,6 +134,20 @@ class LiveKitSession extends VoiceSession {
   Future<void> setMicEnabled(bool enabled) async {
     await room?.localParticipant?.setMicrophoneEnabled(enabled);
     micEnabled = enabled;
+    notifyListeners();
+  }
+
+  bool _frontCamera = true;
+
+  @override
+  bool get supportsCameraSwitch => Platform.isAndroid || Platform.isIOS;
+
+  @override
+  Future<void> switchCamera() async {
+    final track = localVideoTrack;
+    if (track == null) return;
+    _frontCamera = !_frontCamera;
+    await track.setCameraPosition(_frontCamera ? CameraPosition.front : CameraPosition.back);
     notifyListeners();
   }
 

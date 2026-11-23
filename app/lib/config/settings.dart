@@ -150,6 +150,11 @@ class AppSettings extends ChangeNotifier {
   String get voiceMonkeyToken => _s('voiceMonkeyToken', '');
   set voiceMonkeyToken(String v) => _set('voiceMonkeyToken', v);
 
+  /// Deixa o Jarvis usar mouse e teclado quando a tela estiver compartilhada.
+  /// Desligado por padrão: o usuário precisa ativar conscientemente.
+  bool get allowComputerControl => _b('allowComputerControl', false);
+  set allowComputerControl(bool v) => _set('allowComputerControl', v);
+
   /// Ferramentas de controle do PC (só em Linux/Windows).
   bool get pcToolsEnabled => _b('pcToolsEnabled', true);
   set pcToolsEnabled(bool v) => _set('pcToolsEnabled', v);

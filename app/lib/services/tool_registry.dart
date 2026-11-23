@@ -1,6 +1,7 @@
 import 'package:url_launcher/url_launcher.dart';
 
 import 'pc_control.dart';
+import 'screen_bridge.dart';
 import 'voicemonkey_service.dart';
 
 /// Ferramentas que o Jarvis pode chamar no modo "Gemini direto".
@@ -11,6 +12,12 @@ class ToolRegistry {
   final VoiceMonkeyService voiceMonkey;
   final PcControl pc;
   final bool pcEnabled;
+
+  /// Ponte de tela ativa (definida pela sessão) e permissão de controle.
+  ScreenBridge? Function() screen = () => null;
+  bool Function() controlAllowed = () => false;
+
+  bool get _screenTools => pcEnabled && ScreenBridge.supported;
 
   static Map<String, dynamic> _fn(String name, String desc, [Map<String, String> params = const {}, List<String>? required]) {
     final props = <String, dynamic>{};
@@ -53,6 +60,24 @@ class ToolRegistry {
           _fn('controle_brilho', 'Ajusta o brilho da tela.', {'nivel': 'int:Brilho de 0 a 100'}),
           _fn('energia_pc', "Controla a energia do PC. Ações: 'desligar', 'reiniciar', 'bloquear'.", {'acao': 'desligar | reiniciar | bloquear'}),
         ],
+        if (_screenTools) ...[
+          _fn('tela_clicar',
+              'Clica na tela do PC (só funciona com a tela compartilhada e o controle permitido pelo usuário). '
+                  'x e y são de 0 a 1000 sobre a imagem MAIS RECENTE da tela: x da esquerda (0) para a direita (1000), '
+                  'y do topo (0) para baixo (1000). Mire no centro do botão/campo.',
+              {
+                'x': 'int:Posição horizontal 0-1000',
+                'y': 'int:Posição vertical 0-1000',
+                'botao': "'esquerdo' (padrão), 'direito' ou 'meio'",
+                'duplo': "'sim' para clique duplo, senão 'nao'",
+              },
+              ['x', 'y']),
+          _fn('tela_digitar', 'Digita um texto no PC, onde o cursor estiver (clique no campo antes).', {'texto': 'Texto a digitar'}),
+          _fn('tela_tecla', "Pressiona uma tecla ou atalho no PC. Ex.: 'enter', 'esc', 'tab', 'ctrl+c', 'ctrl+v', 'alt+tab', 'super', 'ctrl+l'.",
+              {'combinacao': 'Tecla ou atalho com +'}),
+          _fn('tela_rolar', 'Rola a página no PC.', {'direcao': "'baixo' ou 'cima'", 'quantidade': 'int:Quantos passos (1-30, padrão 5)'},
+              ['direcao']),
+        ],
       ];
 
   Future<String> execute(String name, Map<String, dynamic> args) async {
@@ -66,6 +91,7 @@ class ToolRegistry {
         return voiceMonkey.controlarCasa(s('dispositivo'), s('acao', 'ligar'));
     }
     if (!pcEnabled) return 'Ferramentas de PC desativadas nas configurações.';
+    if (name.startsWith('tela_')) return _tela(name, args, s, i);
     return switch (name) {
       'abrir_aplicativo' => pc.abrirAplicativo(s('nome_app')),
       'fechar_programa' => pc.fecharPrograma(s('programa')),
@@ -82,6 +108,33 @@ class ToolRegistry {
       'controle_volume' => pc.controleVolume(i('nivel')),
       'controle_brilho' => pc.controleBrilho(i('nivel')),
       'energia_pc' => pc.energiaPc(s('acao')),
+      _ => Future.value('Ferramenta desconhecida: $name'),
+    };
+  }
+
+  Future<String> _tela(String name, Map<String, dynamic> args, String Function(String, [String]) s, int Function(String) i) async {
+    final bridge = screen();
+    if (bridge == null || !bridge.ready) {
+      return 'A tela não está compartilhada. Peça ao usuário para tocar no botão de compartilhar tela.';
+    }
+    if (!controlAllowed() || !bridge.control) {
+      return 'O usuário não permitiu o controle de mouse e teclado. Peça para ele ativar o botão do mouse na chamada.';
+    }
+    return switch (name) {
+      'tela_clicar' => bridge.command({
+          'cmd': 'click',
+          'x': i('x'),
+          'y': i('y'),
+          'button': s('botao', 'esquerdo'),
+          'double': s('duplo', 'nao').toLowerCase().startsWith('s'),
+        }),
+      'tela_digitar' => bridge.command({'cmd': 'type', 'text': s('texto')}),
+      'tela_tecla' => bridge.command({'cmd': 'key', 'combo': s('combinacao')}),
+      'tela_rolar' => bridge.command({
+          'cmd': 'scroll',
+          'dir': s('direcao', 'baixo').toLowerCase().startsWith('c') ? 'up' : 'down',
+          'amount': args.containsKey('quantidade') ? i('quantidade') : 5,
+        }),
       _ => Future.value('Ferramenta desconhecida: $name'),
     };
   }

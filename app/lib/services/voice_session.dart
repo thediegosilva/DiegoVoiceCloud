@@ -29,6 +29,23 @@ abstract class VoiceSession extends ChangeNotifier {
   bool get supportsCamera => false;
   bool cameraEnabled = false;
 
+  /// Alternar câmera frontal/traseira.
+  bool get supportsCameraSwitch => false;
+  Future<void> switchCamera() async {}
+
+  /// Compartilhar a tela do PC com o Jarvis.
+  bool get supportsScreen => false;
+  bool screenEnabled = false;
+
+  /// true enquanto espera o usuário aprovar no diálogo do sistema.
+  bool screenStarting = false;
+  Future<void> setScreenEnabled(bool enabled) async {}
+
+  /// Permitir que o Jarvis use mouse e teclado (só com a tela compartilhada).
+  bool get supportsControl => false;
+  bool controlEnabled = false;
+  Future<void> setControlEnabled(bool enabled) async {}
+
   Future<void> connect();
   Future<void> disconnect();
   Future<void> sendText(String text);

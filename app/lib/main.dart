@@ -75,7 +75,7 @@ class HomeScreen extends StatelessWidget {
 
   Future<void> _start(BuildContext context) async {
     if (Platform.isAndroid || Platform.isIOS) {
-      await [Permission.microphone, if (settings.mode == JarvisMode.livekit) Permission.camera].request();
+      await [Permission.microphone, Permission.camera].request();
     }
 
     final VoiceSession session;

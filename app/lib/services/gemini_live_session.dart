@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:camera/camera.dart' show CameraController;
 import 'package:flutter/foundation.dart';
 import 'package:mp_audio_stream/mp_audio_stream.dart';
 import 'package:record/record.dart';
@@ -9,7 +10,9 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../config/prompts.dart';
 import '../config/settings.dart';
+import 'camera_feed.dart';
 import 'mem0_service.dart';
+import 'screen_bridge.dart';
 import 'tool_registry.dart';
 import 'voice_session.dart';
 
@@ -17,7 +20,11 @@ import 'voice_session.dart';
 /// sem LiveKit e sem backend Python. Microfone em PCM16 16 kHz, resposta em
 /// PCM16 24 kHz.
 class GeminiLiveSession extends VoiceSession {
-  GeminiLiveSession({required this.settings, required this.tools, required this.mem0});
+  GeminiLiveSession({required this.settings, required this.tools, required this.mem0}) {
+    tools.screen = () => _screen;
+    tools.controlAllowed = () => controlEnabled;
+    controlEnabled = settings.allowComputerControl;
+  }
 
   final AppSettings settings;
   final ToolRegistry tools;
@@ -60,6 +67,13 @@ class GeminiLiveSession extends VoiceSession {
   String? _agentMsgId;
   int _seq = 0;
 
+  // Visão: câmera do celular ou tela do PC
+  CameraFeed? _camera;
+  ScreenBridge? _screen;
+  StreamSubscription<Uint8List>? _visionSub;
+
+  CameraController? get cameraController => _camera?.controller;
+
   // Estado do filtro de eco
   int _loudSinceMs = 0; // início da sequência atual de microfone alto (0 = nenhuma)
   bool _bargedIn = false; // usuário já interrompeu esta fala do Jarvis
@@ -89,6 +103,7 @@ class GeminiLiveSession extends VoiceSession {
       final memorias = await mem0.loadMemories(settings.userId);
       var instructions = '${settings.systemPrompt}\n\n$kSessionInstruction\n\n'
           'O nome do usuário é ${settings.userId}.';
+      instructions += '\n\n$_visionInstruction';
       if (memorias.isNotEmpty) {
         instructions += '\n\n[Memória carregada — informações sobre o usuário]\n${memorias.map((m) => '- $m').join('\n')}';
       }
@@ -123,6 +138,8 @@ class GeminiLiveSession extends VoiceSession {
             'tools': [
               {'functionDeclarations': decls}
             ],
+          // Sessões com vídeo duram só ~2 min sem compressão de contexto.
+          'contextWindowCompression': {'slidingWindow': {}},
           'inputAudioTranscription': {},
           'outputAudioTranscription': {},
           // Responde mais rápido: considera que o usuário terminou após
@@ -211,6 +228,119 @@ class GeminiLiveSession extends VoiceSession {
     // Bloqueado: manda silêncio no lugar, para o detector de fala do servidor
     // perceber que ninguém está falando (em vez de ouvir o eco).
     _sendAudio(Uint8List(chunk.lengthInBytes));
+  }
+
+  static const _visionInstruction = '''# Visão e controle do PC
+- Quando o usuário ativar a câmera ou o compartilhamento de tela, você recebe uma imagem por segundo. Use-as para responder sobre o que ele está mostrando.
+- Se perguntarem o que você vê e não houver imagem, diga que a câmera/tela está desligada.
+- Para mexer no PC use as ferramentas tela_clicar, tela_digitar, tela_tecla e tela_rolar (só funcionam se o usuário permitiu).
+- Coordenadas de 0 a 1000 sobre a imagem mais recente. Faça uma ação por vez, diga brevemente o que vai fazer e confira a imagem seguinte antes da próxima ação.
+- Nunca apague, compre, envie mensagens ou altere senhas sem o usuário pedir explicitamente.''';
+
+  void _sendImage(Uint8List jpeg) {
+    if (!_setupDone) return;
+    _send({
+      'realtimeInput': {
+        'video': {'data': base64Encode(jpeg), 'mimeType': 'image/jpeg'}
+      }
+    });
+  }
+
+  Future<void> _stopVision() async {
+    await _visionSub?.cancel();
+    _visionSub = null;
+    final cam = _camera;
+    _camera = null;
+    await cam?.dispose();
+    final scr = _screen;
+    _screen = null;
+    await scr?.dispose();
+    cameraEnabled = false;
+    screenEnabled = false;
+    screenStarting = false;
+  }
+
+  void _note(String text) => upsertMessage('n${_seq++}', fromUser: false, text: text, isTool: true);
+
+  // ── Câmera (celular) ─────────────────────────────────────
+  @override
+  bool get supportsCamera => CameraFeed.supported;
+
+  @override
+  bool get supportsCameraSwitch => CameraFeed.supported;
+
+  @override
+  Future<void> setCameraEnabled(bool enabled) async {
+    await _stopVision();
+    if (enabled) {
+      final cam = CameraFeed();
+      try {
+        await cam.start();
+        _camera = cam;
+        _visionSub = cam.frames.listen(_sendImage);
+        cameraEnabled = true;
+      } catch (e) {
+        await cam.dispose();
+        _note('📷 Não consegui abrir a câmera: $e');
+      }
+    }
+    notifyListeners();
+  }
+
+  @override
+  Future<void> switchCamera() async {
+    final cam = _camera;
+    if (cam == null) return;
+    try {
+      await cam.switchLens();
+    } catch (e) {
+      _note('📷 Não consegui trocar a câmera: $e');
+    }
+    notifyListeners();
+  }
+
+  // ── Tela do PC ───────────────────────────────────────────
+  @override
+  bool get supportsScreen => ScreenBridge.supported;
+
+  @override
+  bool get supportsControl => ScreenBridge.supported && settings.pcToolsEnabled;
+
+  @override
+  Future<void> setScreenEnabled(bool enabled) async {
+    await _stopVision();
+    if (enabled) {
+      screenStarting = true;
+      notifyListeners();
+      final bridge = ScreenBridge(control: controlEnabled && supportsControl);
+      try {
+        await bridge.start();
+        _screen = bridge;
+        _visionSub = bridge.frames.listen(_sendImage);
+        screenEnabled = true;
+        bridge.onClosed = (err) {
+          if (_screen != bridge) return;
+          _screen = null;
+          screenEnabled = false;
+          if (err != null) _note('🖥️ $err');
+          notifyListeners();
+        };
+      } catch (e) {
+        await bridge.dispose();
+        _note('🖥️ Compartilhamento de tela não iniciou: ${e.toString().replaceFirst('Exception: ', '')}');
+      }
+      screenStarting = false;
+    }
+    notifyListeners();
+  }
+
+  @override
+  Future<void> setControlEnabled(bool enabled) async {
+    controlEnabled = enabled;
+    settings.allowComputerControl = enabled;
+    notifyListeners();
+    // A permissão de controle muda o tipo de sessão no sistema: reinicia a tela.
+    if (screenEnabled && _screen?.control != enabled) await setScreenEnabled(true);
   }
 
   void _remember(Uint8List chunk) {
@@ -424,6 +554,7 @@ class GeminiLiveSession extends VoiceSession {
   Future<void> _teardown() async {
     _closing = true;
     _ticker?.cancel();
+    await _stopVision();
     await _micSub?.cancel();
     _micSub = null;
     try {

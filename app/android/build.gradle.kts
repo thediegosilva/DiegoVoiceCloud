@@ -17,6 +17,13 @@ subprojects {
 }
 // Plugins antigos (ex.: mp_audio_stream usa compileSdk 31) quebram com as
 // dependências AndroidX atuais. Força todos os plugins a compilar com o SDK 37.
+// O lint do AGP trava analisando o camera_android_camerax (bug do lint com o
+// JDK 17: List.removeLast). Não é necessário para gerar o app.
+subprojects {
+    tasks.configureEach {
+        if (name.startsWith("lintVital")) enabled = false
+    }
+}
 subprojects {
     afterEvaluate {
         extensions.findByType(com.android.build.gradle.LibraryExtension::class.java)

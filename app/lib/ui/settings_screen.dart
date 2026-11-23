@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:material_ui/material_ui.dart';
 
 import '../config/prompts.dart';
@@ -48,6 +50,16 @@ class SettingsScreen extends StatelessWidget {
             ),
             _field('Chave do Mem0 (memória)', settings.mem0ApiKey, (v) => settings.mem0ApiKey = v, secret: true, hint: 'opcional'),
             _field('Token do Voice Monkey (casa)', settings.voiceMonkeyToken, (v) => settings.voiceMonkeyToken = v, secret: true, hint: 'opcional'),
+            if (Platform.isLinux)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                secondary: const Icon(Icons.mouse_rounded),
+                title: const Text('Permitir controle de mouse e teclado'),
+                subtitle: const Text('Com a tela compartilhada, o Jarvis pode clicar, digitar e rolar de verdade. '
+                    'Só ative se confiar no que vai pedir. Dá para desligar a qualquer momento na chamada.'),
+                value: settings.allowComputerControl,
+                onChanged: (v) => settings.allowComputerControl = v,
+              ),
             if (PcControl.supported)
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,

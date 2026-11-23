@@ -1,6 +1,8 @@
+import 'package:camera/camera.dart' show CameraPreview;
 import 'package:livekit_client/livekit_client.dart' show VideoTrackRenderer;
 import 'package:material_ui/material_ui.dart';
 
+import '../services/gemini_live_session.dart';
 import '../services/livekit_session.dart';
 import '../services/voice_session.dart';
 import 'backdrop.dart';
@@ -73,8 +75,6 @@ class _SessionScreenState extends State<SessionScreen> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final level = s.state == SessionState.speaking ? s.agentLevel : s.userLevel * 0.6;
-    final lk = s is LiveKitSession ? s as LiveKitSession : null;
-    final videoTrack = lk?.localVideoTrack;
     final palette = widget.femaleVoice ? OrbPalette.female : OrbPalette.male;
     final statusColor = s.state == SessionState.error ? scheme.error : palette.accent;
 
@@ -98,13 +98,41 @@ class _SessionScreenState extends State<SessionScreen> {
                 alignment: Alignment.center,
                 children: [
                   JarvisOrb(state: s.state, level: level, female: widget.femaleVoice, size: MediaQuery.sizeOf(context).height < 640 ? 150 : 210),
-                  if (videoTrack != null && s.cameraEnabled)
+                  if (s.cameraEnabled && _preview() != null)
                     Positioned(
                       right: 0,
                       bottom: 0,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: SizedBox(width: 96, height: 128, child: VideoTrackRenderer(videoTrack)),
+                      child: Stack(
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: palette.accent.withValues(alpha: 0.6), width: 1.2),
+                              boxShadow: [BoxShadow(color: palette.primary.withValues(alpha: 0.35), blurRadius: 14)],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(13),
+                              child: SizedBox(width: 96, height: 128, child: _preview()),
+                            ),
+                          ),
+                          if (s.supportsCameraSwitch)
+                            Positioned(
+                              right: 4,
+                              bottom: 4,
+                              child: Material(
+                                color: Colors.black.withValues(alpha: 0.55),
+                                shape: const CircleBorder(),
+                                child: InkWell(
+                                  customBorder: const CircleBorder(),
+                                  onTap: s.switchCamera,
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(6),
+                                    child: Icon(Icons.cameraswitch_rounded, size: 18, color: Colors.white),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                 ],
@@ -136,6 +164,24 @@ class _SessionScreenState extends State<SessionScreen> {
                   ],
                 ),
               ),
+              if (s.screenStarting || s.screenEnabled)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Wrap(
+                    spacing: 8,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      _pill(
+                        s.screenStarting ? 'Aprove o compartilhamento na janela do sistema…' : 'Vendo sua tela',
+                        Icons.screen_share_rounded,
+                        palette.accent,
+                      ),
+                      if (s.screenEnabled && s.controlEnabled)
+                        _pill('Controle ativo · toque para desligar', Icons.mouse_rounded, const Color(0xFFFF5A5F),
+                            onTap: () => s.setControlEnabled(false)),
+                    ],
+                  ),
+                ),
               if (s.state == SessionState.error && s.error != null)
                 Padding(
                   padding: const EdgeInsets.all(12),
@@ -181,9 +227,23 @@ class _SessionScreenState extends State<SessionScreen> {
                       ),
                       if (s.supportsCamera)
                         IconButton(
-                          tooltip: 'Câmera',
+                          tooltip: s.cameraEnabled ? 'Desligar câmera' : 'Mostrar a câmera para o Jarvis',
                           onPressed: () => s.setCameraEnabled(!s.cameraEnabled),
-                          icon: Icon(s.cameraEnabled ? Icons.videocam_rounded : Icons.videocam_off_rounded),
+                          icon: Icon(s.cameraEnabled ? Icons.videocam_rounded : Icons.videocam_off_rounded,
+                              color: s.cameraEnabled ? palette.accent : null),
+                        ),
+                      if (s.supportsScreen)
+                        IconButton(
+                          tooltip: s.screenEnabled ? 'Parar de compartilhar a tela' : 'Mostrar minha tela para o Jarvis',
+                          onPressed: s.screenStarting ? null : () => s.setScreenEnabled(!s.screenEnabled),
+                          icon: Icon(s.screenEnabled ? Icons.stop_screen_share_rounded : Icons.screen_share_rounded,
+                              color: s.screenEnabled ? palette.accent : null),
+                        ),
+                      if (s.supportsControl)
+                        IconButton(
+                          tooltip: s.controlEnabled ? 'Tirar o controle do mouse/teclado' : 'Permitir que o Jarvis use mouse e teclado',
+                          onPressed: s.screenStarting ? null : () => _toggleControl(context),
+                          icon: Icon(Icons.mouse_rounded, color: s.controlEnabled ? const Color(0xFFFF5A5F) : null),
                         ),
                       Expanded(
                         child: TextField(
@@ -217,6 +277,75 @@ class _SessionScreenState extends State<SessionScreen> {
         ),
       ),
     );
+  }
+
+  Widget? _preview() {
+    final ss = s;
+    if (ss is LiveKitSession && ss.localVideoTrack != null) return VideoTrackRenderer(ss.localVideoTrack!);
+    if (ss is GeminiLiveSession) {
+      final c = ss.cameraController;
+      if (c != null && c.value.isInitialized) {
+        return FittedBox(
+          fit: BoxFit.cover,
+          clipBehavior: Clip.hardEdge,
+          child: SizedBox(
+            width: c.value.previewSize?.height ?? 96,
+            height: c.value.previewSize?.width ?? 128,
+            child: CameraPreview(c),
+          ),
+        );
+      }
+    }
+    return null;
+  }
+
+  Widget _pill(String text, IconData icon, Color color, {VoidCallback? onTap}) {
+    return Material(
+      color: color.withValues(alpha: 0.12),
+      shape: StadiumBorder(side: BorderSide(color: color.withValues(alpha: 0.45))),
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 15, color: color),
+              const SizedBox(width: 6),
+              Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _toggleControl(BuildContext context) async {
+    if (s.controlEnabled) {
+      await s.setControlEnabled(false);
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.mouse_rounded),
+        title: const Text('Deixar o Jarvis usar mouse e teclado?'),
+        content: const Text(
+          'Com a tela compartilhada, ele poderá clicar, digitar e usar atalhos de verdade no seu PC.\n\n'
+          'O Ubuntu vai pedir sua autorização. Para tirar o controle, toque no aviso vermelho "Controle ativo" '
+          'ou no botão do mouse.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Permitir')),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await s.setControlEnabled(true);
+      if (!s.screenEnabled && !s.screenStarting) await s.setScreenEnabled(true);
+    }
   }
 
   Widget _bubble(ChatMessage m, OrbPalette palette, ColorScheme scheme) {
