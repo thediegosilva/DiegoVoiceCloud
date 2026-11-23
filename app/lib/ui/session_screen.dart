@@ -35,12 +35,28 @@ class _SessionScreenState extends State<SessionScreen> {
     s.connect();
   }
 
+  int _lastMsgCount = 0;
+  int _lastMsgLen = 0;
+
   void _onChange() {
     if (!mounted) return;
+    // Só rola para o fim quando chega texto novo E o usuário já está perto do
+    // fim. (Antes rolava a cada atualização — 2x/s com a tela compartilhada —
+    // e não deixava o usuário rolar para cima.)
+    final count = s.messages.length;
+    final len = count == 0 ? 0 : s.messages.last.text.length;
+    final changed = count != _lastMsgCount || len != _lastMsgLen;
+    _lastMsgCount = count;
+    _lastMsgLen = len;
+    final nearEnd = !_scroll.hasClients || _scroll.position.maxScrollExtent - _scroll.position.pixels < 120;
     setState(() {});
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) _scroll.jumpTo(_scroll.position.maxScrollExtent);
-    });
+    if (changed && nearEnd) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scroll.hasClients) {
+          _scroll.animateTo(_scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 220), curve: Curves.easeOut);
+        }
+      });
+    }
   }
 
   @override
@@ -178,6 +194,12 @@ class _SessionScreenState extends State<SessionScreen> {
                   ],
                 ),
               ),
+              if (s.taskRunning)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: _pill('Executando tarefa… toque para parar', Icons.smart_toy_rounded, const Color(0xFFFFB020),
+                      onTap: s.cancelTask),
+                ),
               if (s.screenStarting || s.screenEnabled)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),

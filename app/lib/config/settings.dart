@@ -156,6 +156,14 @@ class AppSettings extends ChangeNotifier {
   bool get allowComputerControl => _b('allowComputerControl', false);
   set allowComputerControl(bool v) => _set('allowComputerControl', v);
 
+  /// Modelos do agente de uso do computador, em ordem de preferência
+  /// (se um estiver sobrecarregado, usa o próximo).
+  String get agentModels => _s('agentModels', 'gemini-3.5-flash, gemini-3.8-flash, gemini-flash-latest');
+  set agentModels(String v) => _set('agentModels', v);
+
+  List<String> get agentModelList =>
+      agentModels.split(',').map((m) => m.trim()).where((m) => m.isNotEmpty).toList();
+
   /// Uso do terminal pelo Jarvis: desligado, perguntar sempre, ou automático
   /// (comandos perigosos sempre perguntam).
   TerminalMode get terminalMode => TerminalMode.values.firstWhere(

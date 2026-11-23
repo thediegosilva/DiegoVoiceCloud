@@ -12,6 +12,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import '../config/prompts.dart';
 import '../config/settings.dart';
 import 'camera_feed.dart';
+import 'computer_agent.dart';
 import 'mem0_service.dart';
 import 'screen_bridge.dart';
 import 'tool_registry.dart';
@@ -24,6 +25,7 @@ class GeminiLiveSession extends VoiceSession {
   GeminiLiveSession({required this.settings, required this.tools, required this.mem0}) {
     tools.screen = () => _screen;
     tools.controlAllowed = () => controlEnabled;
+    tools.runComputerTask = _runComputerTask;
     controlEnabled = settings.allowComputerControl;
   }
 
@@ -232,11 +234,84 @@ class GeminiLiveSession extends VoiceSession {
   }
 
   static const _visionInstruction = '''# Visão e controle do PC
-- Quando o usuário ativar a câmera ou o compartilhamento de tela, você recebe uma imagem por segundo. Use-as para responder sobre o que ele está mostrando.
+- Quando o usuário ativar a câmera ou o compartilhamento de tela, você recebe imagens ao vivo. Use-as para responder sobre o que ele está mostrando.
 - Se perguntarem o que você vê e não houver imagem, diga que a câmera/tela está desligada.
-- Para mexer no PC use as ferramentas tela_clicar, tela_digitar, tela_tecla e tela_rolar (só funcionam se o usuário permitiu).
-- Coordenadas de 0 a 1000 sobre a imagem mais recente. Faça uma ação por vez, diga brevemente o que vai fazer e confira a imagem seguinte antes da próxima ação.
+- Para QUALQUER tarefa no computador (abrir site/programa, pesquisar, clicar, tocar vídeo, preencher, organizar), chame executar_tarefa_no_pc com o objetivo COMPLETO e detalhado, incluindo o resultado final esperado (ex.: "...e colocar um dos vídeos para tocar"). Não divida em várias chamadas.
+- Antes de chamar, diga só uma frase curta (ex.: "Certo, já vou fazer."). Depois, conte o resultado em uma ou duas frases. Se o resultado trouxer uma pergunta, faça a pergunta ao usuário e chame de novo com a resposta.
+- Para comandos simples de terminal você pode usar executar_comando direto.
 - Nunca apague, compre, envie mensagens ou altere senhas sem o usuário pedir explicitamente.''';
+
+  ComputerAgent? _agent;
+
+  @override
+  Future<void> cancelTask() async {
+    _agent?.cancel();
+  }
+
+  Future<String> _runComputerTask(String goal) async {
+    if (!supportsControl) return 'Uso do computador indisponível (ative as ferramentas de PC nas configurações).';
+    if (!controlEnabled) {
+      return 'O usuário ainda não permitiu o controle de mouse e teclado. Peça para ele tocar no botão do mouse na chamada.';
+    }
+    if (!screenEnabled || _screen?.control != true) {
+      await setScreenEnabled(true);
+      if (!screenEnabled) return 'Não consegui compartilhar a tela com controle.';
+    }
+    final keys = settings.geminiKeys.map((k) => k.key).toList();
+    final active = settings.geminiApiKey;
+    keys
+      ..remove(active)
+      ..insert(0, active);
+    final agent = ComputerAgent(
+      bridge: _screen!,
+      apiKeys: keys,
+      models: settings.agentModelList,
+      terminal: tools.terminal,
+    );
+    _agent = agent;
+    taskRunning = true;
+    taskGoal = goal;
+    final head = ActionEntry(id: 'task${_seq++}', tool: 'tarefa', title: 'Tarefa: $goal');
+    actions.add(head);
+    notifyListeners();
+
+    ActionEntry? current;
+    final sw = Stopwatch()..start();
+    void finishCurrent() {
+      if (current != null && current!.status == ActionStatus.running) {
+        current!
+          ..status = ActionStatus.ok
+          ..took = DateTime.now().difference(current!.started);
+      }
+    }
+
+    String result;
+    try {
+      result = await agent.run(goal, onStep: (step) {
+        finishCurrent();
+        current = ActionEntry(id: 'st${_seq++}', tool: 'passo', title: step.title, detail: step.detail);
+        actions.add(current!);
+        if (actions.length > 300) actions.removeAt(0);
+        if (step.click != null) {
+          lastClick = Offset(step.click!.$1, step.click!.$2);
+          lastClickAt = DateTime.now();
+        }
+        notifyListeners();
+      });
+    } catch (e) {
+      result = 'Erro na tarefa: $e';
+    }
+    finishCurrent();
+    head
+      ..took = sw.elapsed
+      ..result = result
+      ..status = result.startsWith('Concluído') ? ActionStatus.ok : ActionStatus.failed;
+    _agent = null;
+    taskRunning = false;
+    taskGoal = '';
+    notifyListeners();
+    return result;
+  }
 
   static double _num(Object? v) => v is num ? v.toDouble() : double.tryParse('$v') ?? 0;
 
@@ -506,8 +581,9 @@ class GeminiLiveSession extends VoiceSession {
         final args = (call['args'] as Map?)?.cast<String, dynamic>() ?? {};
         final toolId = 't${_seq++}';
         final entry = ActionEntry(id: toolId, tool: name, title: _actionTitle(name, args), detail: _actionDetail(name, args));
-        actions.add(entry);
-        if (actions.length > 200) actions.removeAt(0);
+        // A tarefa do agente tem seu próprio registro detalhado (passo a passo).
+        if (name != 'executar_tarefa_no_pc') actions.add(entry);
+        if (actions.length > 300) actions.removeAt(0);
         if (name == 'tela_clicar') {
           lastClick = Offset(_num(args['x']), _num(args['y']));
           lastClickAt = DateTime.now();

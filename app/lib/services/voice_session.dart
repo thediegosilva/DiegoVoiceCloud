@@ -73,6 +73,11 @@ abstract class VoiceSession extends ChangeNotifier {
   bool screenStarting = false;
   Future<void> setScreenEnabled(bool enabled) async {}
 
+  /// Tarefa do agente de computador em andamento.
+  bool taskRunning = false;
+  String taskGoal = '';
+  Future<void> cancelTask() async {}
+
   /// Permitir que o Jarvis use mouse e teclado (só com a tela compartilhada).
   bool get supportsControl => false;
   bool controlEnabled = false;

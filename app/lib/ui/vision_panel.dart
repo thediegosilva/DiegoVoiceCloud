@@ -68,6 +68,16 @@ class VisionPanel extends StatelessWidget {
           ),
           const SizedBox(height: 16),
         ],
+        if (s.taskRunning)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFFFB020), foregroundColor: Colors.black),
+              onPressed: s.cancelTask,
+              icon: const Icon(Icons.stop_rounded),
+              label: const Text('Parar tarefa'),
+            ),
+          ),
         _Header(
           icon: Icons.bolt_rounded,
           title: 'Ações',

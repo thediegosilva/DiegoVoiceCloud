@@ -52,6 +52,9 @@ class SettingsScreen extends StatelessWidget {
             _field('Chave do Mem0 (memória)', settings.mem0ApiKey, (v) => settings.mem0ApiKey = v, secret: true, hint: 'opcional'),
             _field('Token do Voice Monkey (casa)', settings.voiceMonkeyToken, (v) => settings.voiceMonkeyToken = v, secret: true, hint: 'opcional'),
             if (Platform.isLinux)
+              _field('Modelos do agente de computador', settings.agentModels, (v) => settings.agentModels = v,
+                  hint: 'separados por vírgula; o 1º é o preferido'),
+            if (Platform.isLinux)
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 secondary: const Icon(Icons.mouse_rounded),

@@ -21,6 +21,9 @@ class ToolRegistry {
   ScreenBridge? Function() screen = () => null;
   bool Function() controlAllowed = () => false;
 
+  /// Roda uma tarefa no PC com o agente de computador (definido pela sessão).
+  Future<String> Function(String objetivo)? runComputerTask;
+
   bool get _screenTools => pcEnabled && ScreenBridge.supported;
 
   static Map<String, dynamic> _fn(String name, String desc, [Map<String, String> params = const {}, List<String>? required]) {
@@ -72,24 +75,13 @@ class ToolRegistry {
                   'Comandos interativos não funcionam (sem teclado); limite de 60 s — servidores/longos: "nohup … &". '
                   'Pode ser que o usuário precise confirmar.',
               {'comando': 'O comando completo'}),
-        if (_screenTools) ...[
-          _fn('tela_clicar',
-              'Clica na tela do PC (só funciona com a tela compartilhada e o controle permitido pelo usuário). '
-                  'x e y são de 0 a 1000 sobre a imagem MAIS RECENTE da tela: x da esquerda (0) para a direita (1000), '
-                  'y do topo (0) para baixo (1000). Mire no centro do botão/campo.',
-              {
-                'x': 'int:Posição horizontal 0-1000',
-                'y': 'int:Posição vertical 0-1000',
-                'botao': "'esquerdo' (padrão), 'direito' ou 'meio'",
-                'duplo': "'sim' para clique duplo, senão 'nao'",
-              },
-              ['x', 'y']),
-          _fn('tela_digitar', 'Digita um texto no PC, onde o cursor estiver (clique no campo antes).', {'texto': 'Texto a digitar'}),
-          _fn('tela_tecla', "Pressiona uma tecla ou atalho no PC. Ex.: 'enter', 'esc', 'tab', 'ctrl+c', 'ctrl+v', 'alt+tab', 'super', 'ctrl+l'.",
-              {'combinacao': 'Tecla ou atalho com +'}),
-          _fn('tela_rolar', 'Rola a página no PC.', {'direcao': "'baixo' ou 'cima'", 'quantidade': 'int:Quantos passos (1-30, padrão 5)'},
-              ['direcao']),
-        ],
+        if (_screenTools)
+          _fn('executar_tarefa_no_pc',
+              'Executa uma tarefa no PC do usuário vendo a tela e usando mouse, teclado e terminal, em vários passos, '
+                  'até concluir (ex.: abrir sites, pesquisar, clicar, tocar vídeos, preencher campos, mexer em programas). '
+                  'Descreva o objetivo COMPLETO com todos os detalhes do pedido. Pode levar até alguns minutos. '
+                  'Devolve um resumo do que foi feito ou uma pergunta para o usuário.',
+              {'objetivo': 'O objetivo completo, ex.: "Abrir o Firefox, ir ao YouTube, pesquisar vídeo de gatinho e colocar um para tocar"'}),
       ];
 
   Future<String> execute(String name, Map<String, dynamic> args) async {
@@ -103,7 +95,9 @@ class ToolRegistry {
         return voiceMonkey.controlarCasa(s('dispositivo'), s('acao', 'ligar'));
     }
     if (!pcEnabled) return 'Ferramentas de PC desativadas nas configurações.';
-    if (name.startsWith('tela_')) return _tela(name, args, s, i);
+    if (name == 'executar_tarefa_no_pc') {
+      return runComputerTask?.call(s('objetivo')) ?? Future.value('Uso do computador indisponível neste aparelho.');
+    }
     if (name == 'executar_comando') {
       return terminal?.run(s('comando')) ?? Future.value('Terminal indisponível neste aparelho.');
     }
@@ -123,33 +117,6 @@ class ToolRegistry {
       'controle_volume' => pc.controleVolume(i('nivel')),
       'controle_brilho' => pc.controleBrilho(i('nivel')),
       'energia_pc' => pc.energiaPc(s('acao')),
-      _ => Future.value('Ferramenta desconhecida: $name'),
-    };
-  }
-
-  Future<String> _tela(String name, Map<String, dynamic> args, String Function(String, [String]) s, int Function(String) i) async {
-    final bridge = screen();
-    if (bridge == null || !bridge.ready) {
-      return 'A tela não está compartilhada. Peça ao usuário para tocar no botão de compartilhar tela.';
-    }
-    if (!controlAllowed() || !bridge.control) {
-      return 'O usuário não permitiu o controle de mouse e teclado. Peça para ele ativar o botão do mouse na chamada.';
-    }
-    return switch (name) {
-      'tela_clicar' => bridge.command({
-          'cmd': 'click',
-          'x': i('x'),
-          'y': i('y'),
-          'button': s('botao', 'esquerdo'),
-          'double': s('duplo', 'nao').toLowerCase().startsWith('s'),
-        }),
-      'tela_digitar' => bridge.command({'cmd': 'type', 'text': s('texto')}),
-      'tela_tecla' => bridge.command({'cmd': 'key', 'combo': s('combinacao')}),
-      'tela_rolar' => bridge.command({
-          'cmd': 'scroll',
-          'dir': s('direcao', 'baixo').toLowerCase().startsWith('c') ? 'up' : 'down',
-          'amount': args.containsKey('quantidade') ? i('quantidade') : 5,
-        }),
       _ => Future.value('Ferramenta desconhecida: $name'),
     };
   }
