@@ -26,6 +26,23 @@ class GeminiLiveSession extends VoiceSession {
   static const _inRate = 16000;
   static const _outRate = 24000;
 
+  /// Áudio acumulado antes de começar a tocar (absorve oscilações da rede).
+  static const _playerPrebufferMs = 250;
+
+  /// Depois que o Jarvis termina de falar, ainda pode haver eco no ar
+  /// (latência do alto-falante + reverberação do ambiente).
+  static const _echoTailMs = 450;
+
+  /// Filtro de eco: enquanto o Jarvis fala, o microfone só é liberado se o
+  /// usuário falar alto (RMS bruto acima disto) por [_bargeInMs] seguidos.
+  /// O eco que sobra depois do cancelamento do sistema fica bem abaixo disso.
+  static const _bargeInRms = 0.06;
+  static const _bargeInMs = 280;
+
+  /// Guarda os últimos ms de microfone enquanto está bloqueado, para não
+  /// perder o começo da frase quando o usuário interrompe.
+  static const _preRollMs = 400;
+
   WebSocketChannel? _ws;
   StreamSubscription? _wsSub;
   final _recorder = AudioRecorder();
@@ -43,8 +60,15 @@ class GeminiLiveSession extends VoiceSession {
   String? _agentMsgId;
   int _seq = 0;
 
+  // Estado do filtro de eco
+  int _loudSinceMs = 0; // início da sequência atual de microfone alto (0 = nenhuma)
+  bool _bargedIn = false; // usuário já interrompeu esta fala do Jarvis
+  final List<Uint8List> _preRoll = [];
+  int _preRollBytes = 0;
+
   int get _now => DateTime.now().millisecondsSinceEpoch;
   bool get _agentSpeaking => _now < _playUntil;
+  bool get _echoWindow => _now < _playUntil + _echoTailMs;
 
   @override
   Future<void> connect() async {
@@ -101,19 +125,35 @@ class GeminiLiveSession extends VoiceSession {
             ],
           'inputAudioTranscription': {},
           'outputAudioTranscription': {},
+          // Responde mais rápido: considera que o usuário terminou após
+          // ~0,5 s de silêncio (o padrão do servidor é bem mais longo).
+          'realtimeInputConfig': {
+            'automaticActivityDetection': {
+              'endOfSpeechSensitivity': 'END_SENSITIVITY_HIGH',
+              'silenceDurationMs': 500,
+              'prefixPaddingMs': 200,
+            }
+          },
         }
       });
 
       // 3) Saída de áudio
-      _player = getAudioStream()
-        ..init(sampleRate: _outRate, channels: 1, bufferMilliSec: 120000, waitingBufferMilliSec: 80, fadeOnExhaust: true)
-        ..resume();
+      _player = _newPlayer();
 
       _ticker = Timer.periodic(const Duration(milliseconds: 100), (_) => _tick());
     } catch (e) {
       _fail('Falha ao conectar: $e');
     }
   }
+
+  static AudioStream _newPlayer() => getAudioStream()
+    ..init(
+        sampleRate: _outRate,
+        channels: 1,
+        bufferMilliSec: 120000,
+        waitingBufferMilliSec: _playerPrebufferMs,
+        fadeOnExhaust: true)
+    ..resume();
 
   Future<void> _startMic() async {
     final stream = await _recorder.startStream(const RecordConfig(
@@ -123,17 +163,79 @@ class GeminiLiveSession extends VoiceSession {
       echoCancel: true,
       noiseSuppress: true,
       autoGain: true,
+      // No Android o cancelamento de eco do sistema só age de verdade no
+      // modo "chamada de voz". Sem isso, a voz do Jarvis volta pelo microfone.
+      androidConfig: AndroidRecordConfig(
+        audioSource: AndroidAudioSource.voiceCommunication,
+        audioManagerMode: AudioManagerMode.modeInCommunication,
+        speakerphone: true, // no modo chamada, mantém o som no alto-falante
+      ),
     ));
-    _micSub = stream.listen((chunk) {
-      userLevel = _rms(chunk);
-      if (!micEnabled) return;
-      // Half-duplex: não manda o microfone enquanto o Jarvis fala (+300ms)
-      if (settings.halfDuplex && _now < _playUntil + 300) return;
-      _send({
-        'realtimeInput': {
-          'audio': {'data': base64Encode(chunk), 'mimeType': 'audio/pcm;rate=$_inRate'}
+    _micSub = stream.listen(_onMicChunk);
+  }
+
+  void _onMicChunk(Uint8List chunk) {
+    final level = _rawRms(chunk);
+    userLevel = math.min(1, level * 5);
+    if (!micEnabled) return;
+
+    if (!_echoWindow) {
+      // Jarvis calado: microfone liberado normalmente.
+      _resetEchoGate();
+      _sendAudio(chunk);
+      return;
+    }
+
+    // Jarvis falando (ou eco ainda no ar).
+    if (_bargedIn) {
+      _sendAudio(chunk);
+      return;
+    }
+
+    _remember(chunk);
+    if (!settings.halfDuplex && level >= _bargeInRms) {
+      if (_loudSinceMs == 0) _loudSinceMs = _now;
+      if (_now - _loudSinceMs >= _bargeInMs) {
+        // Usuário está mesmo falando por cima: libera e manda o começo guardado.
+        _bargedIn = true;
+        for (final c in _preRoll) {
+          _sendAudio(c);
         }
-      });
+        _preRoll.clear();
+        _preRollBytes = 0;
+        return;
+      }
+    } else {
+      _loudSinceMs = 0;
+    }
+    // Bloqueado: manda silêncio no lugar, para o detector de fala do servidor
+    // perceber que ninguém está falando (em vez de ouvir o eco).
+    _sendAudio(Uint8List(chunk.lengthInBytes));
+  }
+
+  void _remember(Uint8List chunk) {
+    _preRoll.add(chunk);
+    _preRollBytes += chunk.lengthInBytes;
+    const maxBytes = _inRate * 2 * _preRollMs ~/ 1000;
+    while (_preRollBytes > maxBytes && _preRoll.length > 1) {
+      _preRollBytes -= _preRoll.removeAt(0).lengthInBytes;
+    }
+  }
+
+  void _resetEchoGate() {
+    _bargedIn = false;
+    _loudSinceMs = 0;
+    if (_preRoll.isNotEmpty) {
+      _preRoll.clear();
+      _preRollBytes = 0;
+    }
+  }
+
+  void _sendAudio(Uint8List pcm) {
+    _send({
+      'realtimeInput': {
+        'audio': {'data': base64Encode(pcm), 'mimeType': 'audio/pcm;rate=$_inRate'}
+      }
     });
   }
 
@@ -256,19 +358,19 @@ class GeminiLiveSession extends VoiceSession {
     p.push(out);
     _lastOutLevel = math.min(1, math.sqrt(sum / math.max(1, samples)) * 4);
     final durMs = samples * 1000 ~/ _outRate;
-    _playUntil = math.max(_now, _playUntil) + durMs;
+    // Se o player estava parado, ele espera juntar o pré-buffer antes de tocar.
+    final start = _playUntil > _now ? _playUntil : _now + _playerPrebufferMs;
+    _playUntil = start + durMs;
   }
 
   /// Usuário interrompeu: descarta o áudio que ainda não tocou.
   void _flushPlayback() {
     _player?.uninit();
-    _player = getAudioStream()
-      ..init(sampleRate: _outRate, channels: 1, bufferMilliSec: 120000, waitingBufferMilliSec: 80, fadeOnExhaust: true)
-      ..resume();
+    _player = _newPlayer();
     _playUntil = _now;
   }
 
-  static double _rms(Uint8List chunk) {
+  static double _rawRms(Uint8List chunk) {
     final view = ByteData.sublistView(chunk);
     final n = chunk.lengthInBytes ~/ 2;
     if (n == 0) return 0;
@@ -277,7 +379,7 @@ class GeminiLiveSession extends VoiceSession {
       final v = view.getInt16(i * 2, Endian.little) / 32768.0;
       sum += v * v;
     }
-    return math.min(1, math.sqrt(sum / n) * 5);
+    return math.sqrt(sum / n);
   }
 
   void _onClosed() {
