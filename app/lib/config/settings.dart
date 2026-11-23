@@ -121,7 +121,7 @@ class AppSettings extends ChangeNotifier {
   }
 
   String get geminiModel =>
-      _s('geminiModel', 'gemini-2.5-flash-native-audio-preview-12-2025');
+      _s('geminiModel', 'gemini-3.8-live');
   set geminiModel(String v) => _set('geminiModel', v);
 
   String get geminiVoice => _s('geminiVoice', 'Charon');

@@ -235,7 +235,7 @@ class GeminiLiveSession extends VoiceSession {
 
   static const _visionInstruction = '''# Visão e controle do PC
 - Quando o usuário ativar a câmera ou o compartilhamento de tela, você recebe imagens ao vivo. Use-as para responder sobre o que ele está mostrando.
-- Se perguntarem o que você vê e não houver imagem, diga que a câmera/tela está desligada.
+- Se perguntarem o que você vê, descreva a imagem MAIS RECENTE que recebeu. Só diga que a câmera/tela está desligada se você realmente não recebeu nenhuma imagem.
 - Para QUALQUER tarefa no computador (abrir site/programa, pesquisar, clicar, tocar vídeo, preencher, organizar), chame executar_tarefa_no_pc com o objetivo COMPLETO e detalhado, incluindo o resultado final esperado (ex.: "...e colocar um dos vídeos para tocar"). Não divida em várias chamadas.
 - Antes de chamar, diga só uma frase curta (ex.: "Certo, já vou fazer."). Depois, conte o resultado em uma ou duas frases. Se o resultado trouxer uma pergunta, faça a pergunta ao usuário e chame de novo com a resposta.
 - Para comandos simples de terminal você pode usar executar_comando direto.
@@ -526,17 +526,7 @@ class GeminiLiveSession extends VoiceSession {
       setState(SessionState.listening);
       // Saudação inicial (igual ao generate_reply do agent.py)
       _send({
-        'clientContent': {
-          'turns': [
-            {
-              'role': 'user',
-              'parts': [
-                {'text': 'Cumprimente o usuário de forma breve e confiante.'}
-              ]
-            }
-          ],
-          'turnComplete': true,
-        }
+        'realtimeInput': {'text': 'Cumprimente o usuário de forma breve e confiante.'}
       });
       return;
     }
@@ -669,18 +659,11 @@ class GeminiLiveSession extends VoiceSession {
   Future<void> sendText(String text) async {
     if (text.trim().isEmpty) return;
     upsertMessage('u${_seq++}', fromUser: true, text: text);
+    // Pelo fluxo em tempo real (e não clientContent): assim o modelo considera
+    // as imagens da tela/câmera que chegam pelo mesmo fluxo. Testado: com
+    // clientContent o modelo de áudio ignorava as imagens e inventava.
     _send({
-      'clientContent': {
-        'turns': [
-          {
-            'role': 'user',
-            'parts': [
-              {'text': text}
-            ]
-          }
-        ],
-        'turnComplete': true,
-      }
+      'realtimeInput': {'text': text}
     });
     setState(SessionState.thinking);
   }
