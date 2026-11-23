@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../services/livekit_session.dart';
 import '../services/voice_session.dart';
+import 'backdrop.dart';
 import 'orb.dart';
 
 class SessionScreen extends StatefulWidget {
@@ -74,110 +75,195 @@ class _SessionScreenState extends State<SessionScreen> {
     final level = s.state == SessionState.speaking ? s.agentLevel : s.userLevel * 0.6;
     final lk = s is LiveKitSession ? s as LiveKitSession : null;
     final videoTrack = lk?.localVideoTrack;
+    final palette = widget.femaleVoice ? OrbPalette.female : OrbPalette.male;
+    final statusColor = s.state == SessionState.error ? scheme.error : palette.accent;
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
-      body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 8),
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                JarvisOrb(state: s.state, level: level, female: widget.femaleVoice, size: MediaQuery.sizeOf(context).height < 640 ? 150 : 210),
-                if (videoTrack != null && s.cameraEnabled)
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: SizedBox(width: 96, height: 128, child: VideoTrackRenderer(videoTrack)),
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        title: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w600, letterSpacing: 0.3)),
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: AuroraBackdrop(
+        palette: s.state == SessionState.error ? OrbPalette.error : palette,
+        intensity: s.state == SessionState.speaking ? 1 : 0.45,
+        child: SafeArea(
+          child: Column(
+            children: [
+              const SizedBox(height: 4),
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  JarvisOrb(state: s.state, level: level, female: widget.femaleVoice, size: MediaQuery.sizeOf(context).height < 640 ? 150 : 210),
+                  if (videoTrack != null && s.cameraEnabled)
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: SizedBox(width: 96, height: 128, child: VideoTrackRenderer(videoTrack)),
+                      ),
                     ),
-                  ),
-              ],
-            ),
-            Text(_label,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: s.state == SessionState.error
-                        ? scheme.error
-                        : (widget.femaleVoice ? OrbPalette.female : OrbPalette.male).accent,
-                    letterSpacing: 1.2)),
-            if (s.state == SessionState.error && s.error != null)
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
+                ],
+              ),
+              // Status em formato "pill"
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(99),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.35)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(s.error!, textAlign: TextAlign.center, style: TextStyle(color: scheme.error)),
-                    const SizedBox(height: 8),
-                    FilledButton.tonal(onPressed: s.connect, child: const Text('Tentar de novo')),
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: statusColor,
+                        shape: BoxShape.circle,
+                        boxShadow: [BoxShadow(color: statusColor.withValues(alpha: 0.8), blurRadius: 8)],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(_label,
+                        style: TextStyle(color: statusColor, fontWeight: FontWeight.w600, letterSpacing: 1.1, fontSize: 13)),
                   ],
                 ),
               ),
-            const Divider(height: 24),
-            Expanded(
-              child: ListView.builder(
-                controller: _scroll,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: s.messages.length,
-                itemBuilder: (_, i) {
-                  final m = s.messages[i];
-                  if (m.isTool) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Text(m.text, style: TextStyle(fontSize: 12, color: scheme.outline, fontFamily: 'monospace')),
-                    );
-                  }
-                  return Align(
-                    alignment: m.fromUser ? Alignment.centerRight : Alignment.centerLeft,
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      constraints: const BoxConstraints(maxWidth: 520),
-                      decoration: BoxDecoration(
-                        color: m.fromUser ? scheme.primaryContainer : scheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(16),
+              if (s.state == SessionState.error && s.error != null)
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    children: [
+                      Text(s.error!, textAlign: TextAlign.center, style: TextStyle(color: scheme.error)),
+                      const SizedBox(height: 8),
+                      FilledButton.tonal(onPressed: s.connect, child: const Text('Tentar de novo')),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ShaderMask(
+                  // mensagens somem suavemente no topo da lista
+                  shaderCallback: (r) => const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.white, Colors.white],
+                    stops: [0, 0.06, 1],
+                  ).createShader(r),
+                  blendMode: BlendMode.dstIn,
+                  child: ListView.builder(
+                    controller: _scroll,
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    itemCount: s.messages.length,
+                    itemBuilder: (_, i) => _bubble(s.messages[i], palette, scheme),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                child: GlassPanel(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                  radius: 28,
+                  child: Row(
+                    children: [
+                      IconButton(
+                        tooltip: s.micEnabled ? 'Silenciar microfone' : 'Ativar microfone',
+                        onPressed: () => s.setMicEnabled(!s.micEnabled),
+                        icon: Icon(s.micEnabled ? Icons.mic_rounded : Icons.mic_off_rounded,
+                            color: s.micEnabled ? palette.accent : scheme.outline),
                       ),
-                      child: Text(m.text),
-                    ),
-                  );
-                },
+                      if (s.supportsCamera)
+                        IconButton(
+                          tooltip: 'Câmera',
+                          onPressed: () => s.setCameraEnabled(!s.cameraEnabled),
+                          icon: Icon(s.cameraEnabled ? Icons.videocam_rounded : Icons.videocam_off_rounded),
+                        ),
+                      Expanded(
+                        child: TextField(
+                          controller: _text,
+                          onSubmitted: (_) => _send(),
+                          decoration: const InputDecoration(
+                            hintText: 'Digite uma mensagem…',
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            filled: false,
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+                          ),
+                        ),
+                      ),
+                      IconButton(onPressed: _send, icon: Icon(Icons.arrow_upward_rounded, color: palette.accent)),
+                      const SizedBox(width: 2),
+                      IconButton.filled(
+                        style: IconButton.styleFrom(backgroundColor: const Color(0xFFE5484D), foregroundColor: Colors.white),
+                        tooltip: 'Encerrar',
+                        onPressed: _hangUp,
+                        icon: const Icon(Icons.call_end_rounded),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-              child: Row(
-                children: [
-                  IconButton.filledTonal(
-                    tooltip: s.micEnabled ? 'Silenciar microfone' : 'Ativar microfone',
-                    onPressed: () => s.setMicEnabled(!s.micEnabled),
-                    icon: Icon(s.micEnabled ? Icons.mic : Icons.mic_off),
-                  ),
-                  if (s.supportsCamera)
-                    IconButton.filledTonal(
-                      tooltip: 'Câmera',
-                      onPressed: () => s.setCameraEnabled(!s.cameraEnabled),
-                      icon: Icon(s.cameraEnabled ? Icons.videocam : Icons.videocam_off),
-                    ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _text,
-                      onSubmitted: (_) => _send(),
-                      decoration: const InputDecoration(hintText: 'Digite uma mensagem…', border: OutlineInputBorder(), isDense: true),
-                    ),
-                  ),
-                  IconButton(onPressed: _send, icon: const Icon(Icons.send)),
-                  IconButton.filled(
-                    style: IconButton.styleFrom(backgroundColor: scheme.error, foregroundColor: scheme.onError),
-                    tooltip: 'Encerrar',
-                    onPressed: _hangUp,
-                    icon: const Icon(Icons.call_end),
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _bubble(ChatMessage m, OrbPalette palette, ColorScheme scheme) {
+    if (m.isTool) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.03),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+          ),
+          child: Text(m.text, style: TextStyle(fontSize: 12, color: scheme.outline, fontFamily: 'monospace')),
+        ),
+      );
+    }
+    final user = m.fromUser;
+    return Align(
+      alignment: user ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+        constraints: const BoxConstraints(maxWidth: 520),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(18),
+            topRight: const Radius.circular(18),
+            bottomLeft: Radius.circular(user ? 18 : 6),
+            bottomRight: Radius.circular(user ? 6 : 18),
+          ),
+          gradient: user
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [palette.primary, Color.lerp(palette.primary, palette.deep, 0.45)!],
+                )
+              : LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Colors.white.withValues(alpha: 0.085), Colors.white.withValues(alpha: 0.04)],
+                ),
+          border: user ? null : Border.all(color: Colors.white.withValues(alpha: 0.09)),
+          boxShadow: user ? [BoxShadow(color: palette.primary.withValues(alpha: 0.25), blurRadius: 16, offset: const Offset(0, 4))] : null,
+        ),
+        child: Text(m.text, style: const TextStyle(color: Colors.white, height: 1.35, fontSize: 15)),
       ),
     );
   }

@@ -13,6 +13,8 @@ import 'services/voice_session.dart';
 import 'services/voicemonkey_service.dart';
 import 'ui/orb.dart';
 import 'ui/session_screen.dart';
+import 'ui/api_keys_card.dart';
+import 'ui/backdrop.dart';
 import 'ui/settings_screen.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
@@ -109,17 +111,24 @@ class HomeScreen extends StatelessWidget {
     return ListenableBuilder(
       listenable: settings,
       builder: (context, _) => Scaffold(
+        backgroundColor: Colors.transparent,
+        extendBodyBehindAppBar: true,
         appBar: AppBar(
-          title: const Text('J.A.R.V.I.S.'),
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          title: const Text('J.A.R.V.I.S.', style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 3)),
           actions: [
             IconButton(
               tooltip: 'Configurações',
-              icon: const Icon(Icons.settings),
+              icon: const Icon(Icons.tune_rounded),
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SettingsScreen(settings: settings))),
             ),
           ],
         ),
-        body: Center(
+        body: AuroraBackdrop(
+          palette: settings.voiceIsFemale ? OrbPalette.female : OrbPalette.male,
+          intensity: 0.5,
+          child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: ConstrainedBox(
@@ -127,7 +136,7 @@ class HomeScreen extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const JarvisOrb(state: SessionState.idle, level: 0.15, size: 200),
+                  JarvisOrb(state: SessionState.listening, level: 0.08, female: settings.voiceIsFemale, size: 210),
                   const SizedBox(height: 24),
                   SegmentedButton<JarvisMode>(
                     segments: const [
@@ -146,9 +155,26 @@ class HomeScreen extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
+                  if (settings.mode == JarvisMode.gemini) ...[
+                    const SizedBox(height: 16),
+                    settings.geminiKeys.isEmpty
+                        ? TextButton.icon(
+                            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SettingsScreen(settings: settings))),
+                            icon: const Icon(Icons.vpn_key_rounded, size: 16),
+                            label: const Text('Adicionar chave da API'),
+                          )
+                        : ApiKeyPicker(settings: settings),
+                  ],
                   const SizedBox(height: 32),
                   FilledButton.icon(
-                    style: FilledButton.styleFrom(minimumSize: const Size(220, 56)),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(240, 58),
+                      backgroundColor: (settings.voiceIsFemale ? OrbPalette.female : OrbPalette.male).primary,
+                      foregroundColor: Colors.white,
+                      elevation: 4,
+                      shadowColor: (settings.voiceIsFemale ? OrbPalette.female : OrbPalette.male).primary.withValues(alpha: 0.35),
+                      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: 0.4),
+                    ),
                     onPressed: () => _start(context),
                     icon: const Icon(Icons.mic),
                     label: const Text('Iniciar chamada'),
@@ -157,6 +183,7 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
           ),
+        ),
         ),
       ),
     );

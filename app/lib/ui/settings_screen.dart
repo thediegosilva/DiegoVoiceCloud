@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import '../config/prompts.dart';
 import '../config/settings.dart';
 import '../services/pc_control.dart';
+import 'api_keys_card.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key, required this.settings});
@@ -24,8 +25,7 @@ class SettingsScreen extends StatelessWidget {
                 hint: 'http://IP-DO-PC:8787 ou URL do ngrok'),
             _field('Senha do servidor de token', settings.tokenServerPassword, (v) => settings.tokenServerPassword = v, secret: true),
             _section(context, 'Modo Gemini direto'),
-            _field('Chave da API do Gemini', settings.geminiApiKey, (v) => settings.geminiApiKey = v, secret: true,
-                hint: 'aistudio.google.com/apikey'),
+            ApiKeysCard(settings: settings),
             _field('Modelo', settings.geminiModel, (v) => settings.geminiModel = v),
             DropdownButtonFormField<String>(
               initialValue: _voices.contains(settings.geminiVoice) ? settings.geminiVoice : 'Charon',
