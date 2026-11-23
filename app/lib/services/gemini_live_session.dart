@@ -396,7 +396,16 @@ class GeminiLiveSession extends VoiceSession {
 
     if (msg.containsKey('setupComplete')) {
       _setupDone = true;
-      await _startMic();
+      try {
+        await _startMic();
+      } catch (e) {
+        final msg = e.toString();
+        _fail(msg.contains('parecord')
+            ? 'Microfone indisponível: falta o programa "parecord" no Linux. '
+                'Instale com: sudo apt install pulseaudio-utils'
+            : 'Não consegui abrir o microfone: $msg');
+        return;
+      }
       setState(SessionState.listening);
       // Saudação inicial (igual ao generate_reply do agent.py)
       _send({
