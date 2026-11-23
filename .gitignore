@@ -1,0 +1,14 @@
+# Segredos do backend
+backend/.env
+.env
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# SO / editores
+.DS_Store
+.idea/
+.vscode/

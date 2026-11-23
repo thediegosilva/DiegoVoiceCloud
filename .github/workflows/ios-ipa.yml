@@ -1,0 +1,46 @@
+# Gera um .ipa NÃO assinado do app Flutter para instalar no iPhone
+# com Apple ID gratuito (Sideloadly / AltStore / SideStore — validade de 7 dias).
+#
+# Rodar: aba "Actions" no GitHub → "iOS IPA (sem assinatura)" → "Run workflow".
+# Baixar: ao terminar, abra a execução e baixe o artefato "Jarvis-ipa".
+name: iOS IPA (sem assinatura)
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['ios-*']
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.50.0
+          cache: true
+
+      - name: Dependências
+        run: flutter pub get
+
+      - name: Build iOS (release, sem assinatura)
+        run: flutter build ios --release --no-codesign
+
+      - name: Empacotar .ipa
+        run: |
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qr Jarvis.ipa Payload
+          ls -lh Jarvis.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Jarvis-ipa
+          path: app/Jarvis.ipa
+          retention-days: 14

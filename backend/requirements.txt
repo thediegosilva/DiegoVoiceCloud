@@ -1,0 +1,12 @@
+livekit-agents
+livekit-plugins-google
+livekit-plugins-noise-cancellation
+livekit-api
+mem0ai
+aiohttp
+requests
+python-dotenv
+# Somente Windows (volume e brilho):
+pycaw; sys_platform == "win32"
+comtypes; sys_platform == "win32"
+screen-brightness-control; sys_platform == "win32"
