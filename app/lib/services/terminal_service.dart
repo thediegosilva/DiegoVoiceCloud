@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-/// Como o Jarvis pode usar o terminal.
+/// Como a IA pode usar o terminal.
 enum TerminalMode {
   /// Não pode rodar comandos.
   off,
@@ -14,7 +14,7 @@ enum TerminalMode {
   auto,
 }
 
-/// Executa comandos de shell no PC (Linux/Windows) para o Jarvis.
+/// Executa comandos de shell no PC (Linux/Windows) para a IA.
 class TerminalService {
   TerminalService({required this.mode, required this.confirm});
 
@@ -28,7 +28,7 @@ class TerminalService {
 
   late final String home = Platform.environment[Platform.isWindows ? 'USERPROFILE' : 'HOME'] ?? '.';
 
-  /// Pasta atual (o `cd` do Jarvis persiste entre comandos).
+  /// Pasta atual (o `cd` da IA persiste entre comandos).
   late String cwd = home;
 
   /// Padrões que SEMPRE pedem confirmação, mesmo no modo automático.
@@ -64,7 +64,7 @@ class TerminalService {
     final danger = isDangerous(cmd);
     if (m == TerminalMode.ask || danger) {
       final ok = await confirm('${danger ? '⚠️ Comando potencialmente perigoso.\n\n' : ''}'
-          'O Jarvis quer rodar no terminal (pasta $cwd):\n\n$cmd');
+          'A IA quer rodar no terminal (pasta $cwd):\n\n$cmd');
       if (!ok) return 'O usuário recusou este comando.';
     }
 

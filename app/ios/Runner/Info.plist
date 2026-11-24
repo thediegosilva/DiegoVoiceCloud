@@ -3,16 +3,16 @@
 <plist version="1.0">
 <dict>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>O Jarvis precisa do microfone para ouvir você.</string>
+	<string>A IA precisa do microfone para ouvir você.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>O Jarvis pode usar a câmera para ver o que você mostra.</string>
+	<string>A IA pode usar a câmera para ver o que você mostra.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Para conectar ao servidor do Jarvis no seu PC.</string>
+	<string>Para conectar ao servidor da IA no seu PC.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
@@ -20,9 +20,13 @@
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<string>pt-BR</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>pt-BR</string>
+	</array>
 	<key>CFBundleDisplayName</key>
-	<string>Jarvis</string>
+	<string>Assistente</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>

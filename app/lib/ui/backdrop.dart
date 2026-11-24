@@ -13,7 +13,7 @@ class AuroraBackdrop extends StatefulWidget {
   final OrbPalette palette;
   final Widget child;
 
-  /// 0–1: força da aurora (ex.: mais forte quando o Jarvis fala).
+  /// 0–1: força da aurora (ex.: mais forte quando a IA fala).
   final double intensity;
 
   @override

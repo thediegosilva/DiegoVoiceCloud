@@ -43,7 +43,7 @@ class ComputerAgent {
   bool _cancelled = false;
   void cancel() => _cancelled = true;
 
-  static const _system = '''Você é o módulo de uso do computador do assistente JARVIS. Você controla de verdade o PC Linux (Ubuntu/GNOME) do usuário vendo capturas de tela e chamando funções.
+  static const _system = '''Você é o módulo de uso do computador do assistente. Você controla de verdade o PC Linux (Ubuntu/GNOME) do usuário vendo capturas de tela e chamando funções.
 
 COMO TRABALHAR
 - A cada passo você recebe a captura de tela MAIS RECENTE. Coordenadas x,y vão de 0 a 1000 sobre essa captura (x: esquerda→direita, y: topo→baixo). Mire no CENTRO do elemento.

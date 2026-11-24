@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ícone da notificação: ondas de voz dentro de um círculo (monocromático). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M12,2A10,10 0,1 0,22 12,10 10,0 0,0 12,2ZM12,20.2A8.2,8.2 0,1 1,20.2 12,8.2 8.2,0 0,1 12,20.2Z"/>
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M11.1,6.5h1.8v11h-1.8z M8,9h1.8v6H8z M14.2,9h1.8v6h-1.8z M5.6,11h1.5v2H5.6z M16.9,11h1.5v2h-1.5z"/>
+</vector>

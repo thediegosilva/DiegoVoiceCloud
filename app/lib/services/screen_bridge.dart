@@ -77,7 +77,7 @@ class ScreenBridge {
 
   static Future<String> _extractScript() async {
     final data = await rootBundle.loadString('assets/desktop_bridge.py');
-    final dir = await Directory(p.join(Directory.systemTemp.path, 'jarvis-desktop')).create(recursive: true);
+    final dir = await Directory(p.join(Directory.systemTemp.path, 'assistente-desktop')).create(recursive: true);
     final f = File(p.join(dir.path, 'desktop_bridge.py'));
     await f.writeAsString(data);
     return f.path;

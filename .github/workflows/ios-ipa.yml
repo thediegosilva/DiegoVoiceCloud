@@ -2,7 +2,7 @@
 # com Apple ID gratuito (Sideloadly / AltStore / SideStore — validade de 7 dias).
 #
 # Rodar: aba "Actions" no GitHub → "iOS IPA (sem assinatura)" → "Run workflow".
-# Baixar: ao terminar, abra a execução e baixe o artefato "Jarvis-ipa".
+# Baixar: ao terminar, abra a execução e baixe o artefato "Assistente-ipa".
 name: iOS IPA (sem assinatura)
 
 on:
@@ -36,11 +36,11 @@ jobs:
         run: |
           mkdir -p Payload
           cp -R build/ios/iphoneos/Runner.app Payload/
-          zip -qr Jarvis.ipa Payload
-          ls -lh Jarvis.ipa
+          zip -qr Assistente.ipa Payload
+          ls -lh Assistente.ipa
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Jarvis-ipa
-          path: app/Jarvis.ipa
+          name: Assistente-ipa
+          path: app/Assistente.ipa
           retention-days: 14

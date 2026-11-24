@@ -45,7 +45,14 @@ dependencies:
   permission_handler: ^13.0.2
   path: ^1.9.1
   camera: ^0.12.2
-
+  mqtt_client: ^10.14.0
+  cryptography: ^2.9.0
+  crypto: ^3.0.8
+  typed_data: ^1.4.0
+  file_picker: ^13.4.1
+  image: ^4.13.1
+  archive: ^4.7.1
+  path_provider: ^2.1.6
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -64,6 +71,7 @@ dev_dependencies:
 flutter:
   assets:
     - assets/desktop_bridge.py
+    - assets/images/assistant_logo.png
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

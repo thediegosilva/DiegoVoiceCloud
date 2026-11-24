@@ -6,7 +6,7 @@ import '../services/voice_session.dart';
 import 'backdrop.dart';
 import 'orb.dart';
 
-/// Painel "o que o Jarvis está vendo e fazendo": tela ao vivo (com a marca do
+/// Painel "o que a IA está vendo e fazendo": tela ao vivo (com a marca do
 /// último clique), câmera ao vivo e linha do tempo das ações.
 class VisionPanel extends StatelessWidget {
   const VisionPanel({
@@ -14,7 +14,13 @@ class VisionPanel extends StatelessWidget {
     required this.session,
     required this.palette,
     this.scrollController,
+    this.cameraPreview,
   });
+
+  /// Imagem AO VIVO da câmera (textura da câmera, ~30 fps). O painel usava os
+  /// quadros enviados à IA (1 a cada 1,2 s, decodificados como JPEG), o que
+  /// fazia a câmera ampliada parecer travada e atrasada.
+  final Widget? Function()? cameraPreview;
 
   final VoiceSession session;
   final OrbPalette palette;
@@ -47,16 +53,28 @@ class VisionPanel extends StatelessWidget {
             title: 'Câmera',
             live: s.cameraEnabled && s.lastCameraFrame != null,
             color: palette.accent,
-            trailing: s.cameraEnabled && s.supportsCameraSwitch
-                ? IconButton(
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (s.supportsPhoto)
+                  IconButton(
+                    tooltip: 'Tirar foto e mandar para a IA',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: s.photoBusy ? null : s.takePhoto,
+                    icon: const Icon(Icons.photo_camera_rounded, size: 20),
+                  ),
+                if (s.cameraEnabled && s.supportsCameraSwitch)
+                  IconButton(
                     tooltip: 'Trocar frontal/traseira',
                     visualDensity: VisualDensity.compact,
                     onPressed: s.switchCamera,
                     icon: const Icon(Icons.cameraswitch_rounded, size: 20),
-                  )
-                : null,
+                  ),
+              ],
+            ),
           ),
           _FrameBox(
+            live: s.cameraEnabled ? cameraPreview?.call() : null,
             frame: s.cameraEnabled ? s.lastCameraFrame : null,
             aspect: 3 / 4,
             emptyText: s.cameraEnabled
@@ -72,7 +90,10 @@ class VisionPanel extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFFFB020), foregroundColor: Colors.black),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFFFB020),
+                foregroundColor: Colors.black,
+              ),
               onPressed: s.cancelTask,
               icon: const Icon(Icons.stop_rounded),
               label: const Text('Parar tarefa'),
@@ -236,6 +257,7 @@ class _ScreenView extends StatelessWidget {
 class _FrameBox extends StatelessWidget {
   const _FrameBox({
     required this.frame,
+    this.live,
     required this.aspect,
     required this.emptyText,
     this.action,
@@ -243,6 +265,9 @@ class _FrameBox extends StatelessWidget {
   });
 
   final Uint8List? frame;
+
+  /// Se houver, mostra isto (vídeo ao vivo) no lugar de [frame].
+  final Widget? live;
   final double aspect;
   final String emptyText;
   final (String, VoidCallback)? action;
@@ -259,7 +284,9 @@ class _FrameBox extends StatelessWidget {
           constraints: const BoxConstraints(maxHeight: 280),
           child: AspectRatio(
             aspectRatio: aspect,
-            child: frame == null
+            child: live != null
+                ? live!
+                : frame == null
                 ? Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,

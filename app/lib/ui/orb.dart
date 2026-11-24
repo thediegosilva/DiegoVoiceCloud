@@ -32,10 +32,10 @@ class OrbPalette {
       );
 }
 
-/// Orbe animado estilo JARVIS: núcleo de plasma que reage à voz, espectro
+/// Orbe animado estilo assistente: núcleo de plasma que reage à voz, espectro
 /// radial, anéis de HUD e partículas em órbita.
-class JarvisOrb extends StatefulWidget {
-  const JarvisOrb({
+class AssistantOrb extends StatefulWidget {
+  const AssistantOrb({
     super.key,
     required this.state,
     required this.level,
@@ -53,10 +53,10 @@ class JarvisOrb extends StatefulWidget {
   final double size;
 
   @override
-  State<JarvisOrb> createState() => _JarvisOrbState();
+  State<AssistantOrb> createState() => _AssistantOrbState();
 }
 
-class _JarvisOrbState extends State<JarvisOrb> with SingleTickerProviderStateMixin {
+class _AssistantOrbState extends State<AssistantOrb> with SingleTickerProviderStateMixin {
   late final Ticker _ticker;
   final _frame = _OrbFrame();
   Duration _last = Duration.zero;

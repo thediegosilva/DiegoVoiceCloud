@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
-/// Porta de "Controle_PC/automacao_jarvis.py" para Dart, funcionando em
+/// Porta do controle de PC do projeto original (Python) para Dart, funcionando em
 /// Linux e Windows (o original era só Windows).
 ///
 /// Segurança: todos os caminhos são resolvidos e precisam ficar DENTRO da pasta
@@ -359,7 +359,7 @@ interface IMMDevice { int Activate(ref System.Guid id, int clsCtx, int activatio
 [Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 interface IMMDeviceEnumerator { int f(); int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice endpoint); }
 [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")] class MMDeviceEnumeratorComObject { }
-public class JarvisAudio {
+public class AssistAudio {
   public static void SetVolume(float v) {
     var enumerator = new MMDeviceEnumeratorComObject() as IMMDeviceEnumerator;
     IMMDevice dev; enumerator.GetDefaultAudioEndpoint(0, 1, out dev);
@@ -369,5 +369,5 @@ public class JarvisAudio {
   }
 }
 "@
-''' '[JarvisAudio]::SetVolume(${n / 100})';
+''' '[AssistAudio]::SetVolume(${n / 100})';
 }

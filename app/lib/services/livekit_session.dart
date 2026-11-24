@@ -3,7 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
-import 'package:livekit_client/livekit_client.dart';
+import 'package:livekit_client/livekit_client.dart' hide ChatMessage;
 
 import '../config/settings.dart';
 import 'voice_session.dart';
@@ -12,7 +12,11 @@ import 'voice_session.dart';
 /// backend/token_server.py (protegido por senha), entra numa sala e o agente
 /// Python (backend/agent.py) entra automaticamente.
 class LiveKitSession extends VoiceSession {
-  LiveKitSession({required this.settings});
+  /// [history]: conversa salva reaberta (só aparece na tela; o agente do PC
+  /// não recebe o histórico).
+  LiveKitSession({required this.settings, List<ChatMessage> history = const []}) {
+    messages.addAll(history);
+  }
 
   final AppSettings settings;
 
@@ -50,7 +54,12 @@ class LiveKitSession extends VoiceSession {
               'Authorization': 'Bearer ${settings.tokenServerPassword}',
               'Content-Type': 'application/json',
             },
-            body: jsonEncode({'identity': settings.userId}),
+            body: jsonEncode({
+              'identity': settings.userName.isEmpty ? settings.userId : settings.userName,
+              'userContext': settings.userContext(),
+              'assistantName': settings.assistantName,
+              'voice': settings.geminiVoice,
+            }),
           )
           .timeout(const Duration(seconds: 15));
       if (res.statusCode == 401) throw Exception('Senha do servidor de token incorreta.');

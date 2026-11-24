@@ -1,7 +1,7 @@
 """
 Servidor de token para o app Flutter (substitui app/api/connection-details do Next.js).
 
-- POST /token  (header: Authorization: Bearer <JARVIS_APP_PASSWORD>)
+- POST /token  (header: Authorization: Bearer <ASSISTENTE_APP_PASSWORD>)
   -> {"serverUrl", "roomName", "participantToken", "participantName"}
 
 Diferente do frontend antigo, ele EXIGE senha: sem isso, quem achasse a URL
@@ -18,16 +18,21 @@ from aiohttp import web
 from dotenv import load_dotenv
 from livekit import api
 
+
+def _env(nome: str, padrao: str = "") -> str:
+    """Lê ASSISTENTE_<nome> (ou o nome antigo JARVIS_<nome>, por compatibilidade)."""
+    return os.getenv(f"ASSISTENTE_{nome}") or os.getenv(f"JARVIS_{nome}", padrao)
+
 load_dotenv()
 
 LIVEKIT_URL = os.environ["LIVEKIT_URL"]
 API_KEY = os.environ["LIVEKIT_API_KEY"]
 API_SECRET = os.environ["LIVEKIT_API_SECRET"]
-PASSWORD = os.getenv("JARVIS_APP_PASSWORD", "")
+PASSWORD = _env("APP_PASSWORD", "")
 PORT = int(os.getenv("TOKEN_SERVER_PORT", "8787"))
 
 if len(PASSWORD) < 8:
-    raise SystemExit("Defina JARVIS_APP_PASSWORD no .env (mínimo 8 caracteres).")
+    raise SystemExit("Defina ASSISTENTE_APP_PASSWORD no .env (mínimo 8 caracteres).")
 
 
 def _autorizado(request: web.Request) -> bool:
@@ -45,13 +50,22 @@ async def token(request: web.Request) -> web.Response:
     except (json.JSONDecodeError, ValueError):
         body = {}
     nome = str(body.get("identity") or "user")[:64]
+    # Nome da IA e voz escolhidos no app (o nome muda com a voz).
+    meta = json.dumps(
+        {
+            "assistantName": str(body.get("assistantName") or "")[:40],
+            "voice": str(body.get("voice") or "")[:40],
+            "userContext": str(body.get("userContext") or "")[:600],
+        }
+    )
 
-    room_name = f"jarvis_room_{secrets.token_hex(4)}"
-    identity = f"jarvis_user_{secrets.token_hex(4)}"
+    room_name = f"assistente_sala_{secrets.token_hex(4)}"
+    identity = f"assistente_user_{secrets.token_hex(4)}"
     jwt = (
         api.AccessToken(API_KEY, API_SECRET)
         .with_identity(identity)
         .with_name(nome)
+        .with_metadata(meta)
         .with_ttl(datetime.timedelta(minutes=15))
         .with_grants(
             api.VideoGrants(

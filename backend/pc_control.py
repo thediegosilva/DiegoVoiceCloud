@@ -1,10 +1,10 @@
 """
-Porta multiplataforma (Linux + Windows) de Controle_PC/automacao_jarvis.py.
+Porta multiplataforma (Linux + Windows) do controle de PC do projeto original.
 
 Mudanças de segurança em relação ao original:
 - Todos os caminhos precisam ficar dentro da pasta home do usuário.
 - Ações destrutivas (deletar, limpar pasta, desligar/reiniciar) só funcionam se
-  JARVIS_PERMITIR_DESTRUTIVO=1 no .env.
+  ASSISTENTE_PERMITIR_DESTRUTIVO=1 no .env.
 - Abrir programas não usa mais shell=True.
 """
 
@@ -14,6 +14,11 @@ import shutil
 import subprocess
 import webbrowser
 from pathlib import Path
+
+
+def _env(nome: str, padrao: str = "") -> str:
+    """Lê ASSISTENTE_<nome> (ou o nome antigo JARVIS_<nome>, por compatibilidade)."""
+    return os.getenv(f"ASSISTENTE_{nome}") or os.getenv(f"JARVIS_{nome}", padrao)
 
 WINDOWS = platform.system() == "Windows"
 LINUX = platform.system() == "Linux"
@@ -38,7 +43,7 @@ def _abrir_com_sistema(alvo: str) -> None:
         subprocess.Popen(["xdg-open", alvo], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
-class JarvisControl:
+class ControlePc:
     IGNORAR = {"venv", ".venv", "env", "node_modules", "__pycache__", ".git", ".idea", ".vscode"}
 
     LINUX_APPS = {
@@ -86,7 +91,7 @@ class JarvisControl:
             "downloads": self.downloads,
             "home": self.home,
         }
-        self.permitir_destrutivo = os.getenv("JARVIS_PERMITIR_DESTRUTIVO", "0") == "1"
+        self.permitir_destrutivo = _env("PERMITIR_DESTRUTIVO", "0") == "1"
 
     # ── caminhos ───────────────────────────────────────────
     def _resolver(self, caminho: str) -> Path:
@@ -115,7 +120,7 @@ class JarvisControl:
 
     def _bloqueado(self) -> str | None:
         if not self.permitir_destrutivo:
-            return ("Ação destrutiva bloqueada. Para permitir, defina JARVIS_PERMITIR_DESTRUTIVO=1 "
+            return ("Ação destrutiva bloqueada. Para permitir, defina ASSISTENTE_PERMITIR_DESTRUTIVO=1 "
                     "no .env do backend.")
         return None
 

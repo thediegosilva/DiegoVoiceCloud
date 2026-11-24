@@ -1,5 +1,5 @@
 @echo off
-REM Sobe o agente Jarvis + o servidor de token (Windows).
+REM Sobe o agente do assistente + o servidor de token (Windows).
 cd /d "%~dp0"
 if not exist "venv\Scripts\activate.bat" (
   echo Crie o venv: python -m venv venv ^&^& venv\Scripts\pip install -r requirements.txt
@@ -12,6 +12,6 @@ if not exist ".env" (
   exit /b
 )
 call venv\Scripts\activate
-start "Jarvis Token Server" /min python token_server.py
+start "Assistente Token Server" /min python token_server.py
 python agent.py dev
 pause

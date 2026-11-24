@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Ponte de tela/controle do Jarvis para Linux (Wayland/GNOME) via portais XDG.
+Ponte de tela/controle da IA para Linux (Wayland/GNOME) via portais XDG.
 
 - Modo "view":    portal ScreenCast       → só vê a tela.
 - Modo "control": portal RemoteDesktop    → vê a tela + mouse e teclado.
@@ -38,7 +38,7 @@ RD_IFACE = "org.freedesktop.portal.RemoteDesktop"
 SC_IFACE = "org.freedesktop.portal.ScreenCast"
 REQ_IFACE = "org.freedesktop.portal.Request"
 
-CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".config", "jarvis-desktop")
+CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".config", "assistente-desktop")
 
 BUTTONS = {"left": 272, "esquerdo": 272, "right": 273, "direito": 273, "middle": 274, "meio": 274}
 
@@ -94,7 +94,7 @@ class Bridge:
     # ── portal helpers ────────────────────────────────────
     def _token(self):
         self.counter += 1
-        return f"jarvis{os.getpid()}_{self.counter}"
+        return f"assist{os.getpid()}_{self.counter}"
 
     def _request(self, iface, method, args_builder, on_response):
         """Chama um método do portal que responde via sinal Request::Response."""
@@ -354,7 +354,7 @@ class Bridge:
             else:
                 raise RuntimeError(f"Comando desconhecido: {cmd}")
             emit({"type": "result", "id": rid, "ok": True, "msg": out})
-            # Imagem nova logo após a ação, para o Jarvis conferir o resultado.
+            # Imagem nova logo após a ação, para a IA conferir o resultado.
             GLib.timeout_add(350, self._send_frame_once)
         except Exception as e:  # noqa: BLE001
             emit({"type": "result", "id": rid, "ok": False, "msg": str(e)})

@@ -1,15 +1,16 @@
 """
-Agente Jarvis unificado (modo LiveKit do app Flutter).
+Agente unificado do assistente (modo LiveKit do app Flutter).
 
 Junta o que estava espalhado no projeto antigo:
-- Jarvis- Aula 01      → persona + Gemini Realtime + cancelamento de ruído
-- Jarvis Mem0          → memória de longo prazo
+- Aula 01              → persona + Gemini Realtime + cancelamento de ruído
+- Mem0                 → memória de longo prazo
 - Controle_PC / HOME   → ferramentas de PC (agora Linux + Windows) e casa (Voice Monkey)
 
 Rodar:  python agent.py dev
 """
 
 import asyncio
+import json
 import logging
 import os
 import webbrowser
@@ -21,15 +22,20 @@ from livekit.agents import Agent, AgentSession, ChatContext, function_tool
 from livekit.agents.voice import room_io
 from livekit.plugins import google, noise_cancellation
 
-from pc_control import JarvisControl
+from pc_control import ControlePc
 from prompts import AGENT_INSTRUCTION, SESSION_INSTRUCTION
+
+
+def _env(nome: str, padrao: str = "") -> str:
+    """Lê ASSISTENTE_<nome> (ou o nome antigo JARVIS_<nome>, por compatibilidade)."""
+    return os.getenv(f"ASSISTENTE_{nome}") or os.getenv(f"JARVIS_{nome}", padrao)
 
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("jarvis")
+logger = logging.getLogger("assistente")
 
-USER_ID = os.getenv("JARVIS_USER_ID", "PedroLucas")
+USER_ID = _env("USER_ID", "PedroLucas")
 MEM0_ATIVO = bool(os.getenv("MEM0_API_KEY"))
 VOICEMONKEY_ATIVO = bool(os.getenv("VOICEMONKEY_TOKEN") or os.getenv("VOICEMONKEY_ACCESS_TOKEN"))
 
@@ -46,16 +52,17 @@ def get_voicemonkey():
 
 
 class Assistant(Agent):
-    def __init__(self, chat_ctx: ChatContext | None = None):
+    def __init__(self, chat_ctx: ChatContext | None = None, nome: str = "Diego", voz: str | None = None,
+                 usuario: str = ""):
         super().__init__(
-            instructions=AGENT_INSTRUCTION,
+            instructions=AGENT_INSTRUCTION.replace("{NOME}", nome) + (f"\n\n# Usuário\n{usuario}" if usuario else ""),
             llm=google.realtime.RealtimeModel(
-                voice=os.getenv("JARVIS_VOICE", "Charon"),
+                voice=voz or _env("VOICE", "Charon"),
                 temperature=0.6,
             ),
             chat_ctx=chat_ctx,
         )
-        self.pc = JarvisControl()
+        self.pc = ControlePc()
 
     async def _run(self, fn, *args):
         """As funções de PC são bloqueantes: roda fora do event loop."""
@@ -220,10 +227,21 @@ async def entrypoint(ctx: agents.JobContext):
 
     await ctx.connect()
 
+    # Nome e voz escolhidos no app (vêm nos metadados do participante).
+    nome, voz, usuario = "Diego", None, ""
+    try:
+        participante = await ctx.wait_for_participant()
+        meta = json.loads(participante.metadata or "{}")
+        nome = (meta.get("assistantName") or nome).strip() or nome
+        voz = (meta.get("voice") or "").strip() or None
+        usuario = (meta.get("userContext") or "").strip()
+    except Exception as e:
+        logger.warning(f"Sem nome/voz do app: {e}")
+
     session = AgentSession()
     await session.start(
         room=ctx.room,
-        agent=Assistant(chat_ctx=initial_ctx),
+        agent=Assistant(chat_ctx=initial_ctx, nome=nome, voz=voz, usuario=usuario),
         room_options=room_io.RoomOptions(
             audio_input=room_io.AudioInputOptions(noise_cancellation=noise_cancellation.BVC()),
             video_input=True,

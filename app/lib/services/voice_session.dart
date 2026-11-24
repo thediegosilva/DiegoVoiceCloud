@@ -5,7 +5,7 @@ enum SessionState { idle, connecting, listening, thinking, speaking, error }
 
 enum ActionStatus { running, ok, failed }
 
-/// Uma ação executada pelo Jarvis (ferramenta), mostrada no painel.
+/// Uma ação executada pela IA (ferramenta), mostrada no painel.
 class ActionEntry {
   ActionEntry({required this.id, required this.tool, required this.title, this.detail = ''})
       : started = DateTime.now();
@@ -21,7 +21,7 @@ class ActionEntry {
 }
 
 class ChatMessage {
-  ChatMessage({required this.id, required this.fromUser, required this.text, this.isTool = false});
+  ChatMessage({required this.id, required this.fromUser, required this.text, this.isTool = false, this.image});
 
   final String id;
   final bool fromUser;
@@ -29,6 +29,9 @@ class ChatMessage {
 
   /// Mensagem de sistema/ferramenta (ex: "🔧 controlar_casa(...)").
   final bool isTool;
+
+  /// Foto anexada (JPEG), ex.: foto tirada para a IA.
+  final Uint8List? image;
 }
 
 /// Interface comum aos dois modos (LiveKit e Gemini direto) para a UI.
@@ -38,16 +41,19 @@ abstract class VoiceSession extends ChangeNotifier {
   final List<ChatMessage> messages = [];
   bool micEnabled = true;
 
-  /// Nível de áudio 0..1 do Jarvis (para animar o orbe).
+  /// Nível de áudio 0..1 da IA (para animar o orbe).
   double agentLevel = 0;
+
+  /// Por onde sai/entra o som: "bluetooth:NOME", "wired", "speaker" ou "".
+  String audioRoute = '';
 
   /// Nível de áudio 0..1 do microfone.
   double userLevel = 0;
 
-  /// Ações do Jarvis (mais recentes no fim).
+  /// Ações da IA (mais recentes no fim).
   final List<ActionEntry> actions = [];
 
-  /// Último quadro (JPEG) que o Jarvis recebeu da tela / da câmera.
+  /// Último quadro (JPEG) que a IA recebeu da tela / da câmera.
   Uint8List? lastScreenFrame;
   Uint8List? lastCameraFrame;
 
@@ -59,13 +65,23 @@ abstract class VoiceSession extends ChangeNotifier {
   DateTime? lastClickAt;
 
   bool get supportsCamera => false;
+
+  /// Tirar uma foto com a câmera e mandar para a IA analisar.
+  bool get supportsPhoto => false;
+  bool photoBusy = false;
+  Future<void> takePhoto() async {}
+
+  /// Mandar foto da galeria / documento de texto para a IA.
+  bool get supportsAttachments => false;
+  Future<void> sendImageFile(Uint8List jpeg, String name) async {}
+  Future<void> sendDocument(String name, String text) async {}
   bool cameraEnabled = false;
 
   /// Alternar câmera frontal/traseira.
   bool get supportsCameraSwitch => false;
   Future<void> switchCamera() async {}
 
-  /// Compartilhar a tela do PC com o Jarvis.
+  /// Compartilhar a tela do PC com a IA.
   bool get supportsScreen => false;
   bool screenEnabled = false;
 
@@ -78,7 +94,7 @@ abstract class VoiceSession extends ChangeNotifier {
   String taskGoal = '';
   Future<void> cancelTask() async {}
 
-  /// Permitir que o Jarvis use mouse e teclado (só com a tela compartilhada).
+  /// Permitir que a IA use mouse e teclado (só com a tela compartilhada).
   bool get supportsControl => false;
   bool controlEnabled = false;
   Future<void> setControlEnabled(bool enabled) async {}
@@ -96,10 +112,11 @@ abstract class VoiceSession extends ChangeNotifier {
   }
 
   /// Adiciona ou atualiza (pelo id) uma mensagem da transcrição.
-  void upsertMessage(String id, {required bool fromUser, required String text, bool append = false, bool isTool = false}) {
+  void upsertMessage(String id,
+      {required bool fromUser, required String text, bool append = false, bool isTool = false, Uint8List? image}) {
     final idx = messages.indexWhere((m) => m.id == id);
     if (idx == -1) {
-      messages.add(ChatMessage(id: id, fromUser: fromUser, text: text, isTool: isTool));
+      messages.add(ChatMessage(id: id, fromUser: fromUser, text: text, isTool: isTool, image: image));
     } else {
       messages[idx].text = append ? messages[idx].text + text : text;
     }
